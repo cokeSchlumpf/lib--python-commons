@@ -21,7 +21,10 @@ jobs:
           cache: poetry
 
       - name: Install dependencies
-        run: poetry install --all-extras
+        run: poetry install --all-extras --with docs
 
       - name: Run checks
         run: poetry run poe check
+
+      - name: Build documentation
+        run: poetry run poe docs-build

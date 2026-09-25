@@ -38,6 +38,10 @@ pytest-dotenv = "^0.5.2"
 ruff = "^0.13.0"
 sqlalchemy = {extras = ["mypy"], version = "^2.0.46"}
 
+[tool.poetry.group.docs.dependencies]
+mkdocs-material = "^9.7.7"
+mkdocstrings = {extras = ["python"], version = "^1.0.6"}
+
 [tool.poe.tasks]
 check = [
     { cmd = "ruff check src/commons"},
@@ -48,6 +52,8 @@ check = [
     { cmd = "mypy src/jobs"},
     { cmd = "pytest" }
 ]
+docs = { cmd = "mkdocs serve", help = "Serve the documentation locally" }
+docs-build = { cmd = "mkdocs build --strict", help = "Build the documentation into site/" }
 fix = [
     { cmd = "ruff check src/commons --fix" },
     { cmd = "ruff format src/commons" },
