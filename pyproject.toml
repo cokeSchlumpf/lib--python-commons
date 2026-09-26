@@ -42,6 +42,9 @@ sqlalchemy = {extras = ["mypy"], version = "^2.0.46"}
 mkdocs-material = "^9.7.7"
 mkdocstrings = {extras = ["python"], version = "^1.0.6"}
 
+[tool.poetry.group.release.dependencies]
+openai = "^3.19.2"
+
 [tool.poe.tasks]
 check = [
     { cmd = "ruff check src/commons"},
@@ -50,6 +53,9 @@ check = [
     { cmd = "ruff check src/jobs"},
     { cmd = "ruff format --check src/jobs"},
     { cmd = "mypy src/jobs"},
+    { cmd = "ruff check scripts"},
+    { cmd = "ruff format --check scripts"},
+    { cmd = "mypy scripts"},
     { cmd = "pytest" }
 ]
 docs = { cmd = "mkdocs serve", help = "Serve the documentation locally" }
@@ -59,6 +65,8 @@ fix = [
     { cmd = "ruff format src/commons" },
     { cmd = "ruff check src/jobs --fix" },
     { cmd = "ruff format src/jobs" },
+    { cmd = "ruff check scripts --fix" },
+    { cmd = "ruff format scripts" },
 ]
 
 [tool.pytest.ini_options]

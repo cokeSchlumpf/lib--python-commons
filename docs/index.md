@@ -6,24 +6,34 @@ settings, database access, file storage, user management and background jobs.
 
 ## Installation
 
-The library is installed directly from GitHub and requires Python 3.12 or newer.
+The library is installed directly from GitHub and requires Python 3.12 or newer. Pin it to a release tag
+(e.g. `v1.0.0`) or follow a major version with its branch (e.g. `versions/1`, always the latest `1.x` release).
+All releases are listed in the [changelog](changelog.md).
 
 === "Poetry"
 
     ```bash
-    poetry add git+https://github.com/cokeSchlumpf/lib--python-commons.git
+    # exact release
+    poetry add "git+https://github.com/cokeSchlumpf/lib--python-commons.git#v1.0.0"
+
+    # latest 1.x release (update with `poetry update commons`)
+    poetry add "git+https://github.com/cokeSchlumpf/lib--python-commons.git#versions/1"
 
     # including the Azure storage backend
-    poetry add "git+https://github.com/cokeSchlumpf/lib--python-commons.git[azure]"
+    poetry add "git+https://github.com/cokeSchlumpf/lib--python-commons.git#v1.0.0[azure]"
     ```
 
 === "pip"
 
     ```bash
-    pip install "commons @ git+https://github.com/cokeSchlumpf/lib--python-commons.git"
+    # exact release
+    pip install "commons @ git+https://github.com/cokeSchlumpf/lib--python-commons.git@v1.0.0"
+
+    # latest 1.x release
+    pip install "commons @ git+https://github.com/cokeSchlumpf/lib--python-commons.git@versions/1"
 
     # including the Azure storage backend
-    pip install "commons[azure] @ git+https://github.com/cokeSchlumpf/lib--python-commons.git"
+    pip install "commons[azure] @ git+https://github.com/cokeSchlumpf/lib--python-commons.git@v1.0.0"
     ```
 
 ## What's inside
