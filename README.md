@@ -87,6 +87,8 @@ The pipeline relies on these GitHub settings:
 - **Settings → General → Pull Requests:** only *Allow squash merging* enabled, with *Default commit message* set to
   **Pull request title and description**. Otherwise single-commit PRs use the commit message instead of the PR title,
   and `BREAKING CHANGE:` / `Release-As:` lines in the description don't reach `main`.
+- **Settings → Actions → General → Workflow permissions:** *Allow GitHub Actions to create and approve pull requests*
+  enabled. Otherwise release-please can't open the Release PR.
 - **Settings → Rules → Rulesets:** a branch ruleset for `versions/*` with *Restrict deletions* and *Block force
   pushes*.
 - **Settings → Secrets and variables → Actions:** `OPENAI_API_KEY` (optional, enables the LLM polish).

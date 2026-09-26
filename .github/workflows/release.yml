@@ -41,18 +41,30 @@ jobs:
         run: git push origin "${SHA}:refs/heads/versions/${MAJOR}"
 
       # Optional: polish the release notes of the Release PR with an LLM. Never blocks a release.
-      - if: ${{ steps.release.outputs.prs_created == 'true' && env.OPENAI_API_KEY != '' }}
+      # The `pr` output is only set when a Release PR was created or updated, so it's read here with jq instead of
+      # fromJSON() in expressions: step `env` is evaluated before `if`, and fromJSON('') fails the whole workflow.
+      - id: release-pr
+        name: Read Release PR
+        if: ${{ steps.release.outputs.prs_created == 'true' && env.OPENAI_API_KEY != '' }}
+        continue-on-error: true
+        env:
+          PR_JSON: ${{ steps.release.outputs.pr }}
+        run: |
+          echo "number=$(jq -r .number <<< "$PR_JSON")" >> "$GITHUB_OUTPUT"
+          echo "branch=$(jq -r .headBranchName <<< "$PR_JSON")" >> "$GITHUB_OUTPUT"
+
+      - if: ${{ steps.release-pr.outputs.branch != '' }}
         continue-on-error: true
         uses: actions/checkout@v7
         with:
-          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          ref: ${{ steps.release-pr.outputs.branch }}
 
-      - if: ${{ steps.release.outputs.prs_created == 'true' && env.OPENAI_API_KEY != '' }}
+      - if: ${{ steps.release-pr.outputs.branch != '' }}
         continue-on-error: true
         name: Install Poetry
         run: pipx install poetry==2.1.3
 
-      - if: ${{ steps.release.outputs.prs_created == 'true' && env.OPENAI_API_KEY != '' }}
+      - if: ${{ steps.release-pr.outputs.branch != '' }}
         continue-on-error: true
         uses: actions/setup-python@v7
         with:
@@ -60,12 +72,12 @@ jobs:
           cache: poetry
 
       - name: Polish release notes
-        if: ${{ steps.release.outputs.prs_created == 'true' && env.OPENAI_API_KEY != '' }}
+        if: ${{ steps.release-pr.outputs.branch != '' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APP__MODELS__OPENAI__API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          PR_NUMBER: ${{ steps.release-pr.outputs.number }}
         run: |
           poetry install --only main,release
           gh pr view "$PR_NUMBER" --json body --jq .body > "$RUNNER_TEMP/body.md"
