@@ -1,6 +1,6 @@
 [project]
 name = "commons"
-version = "0.1.0"
+version = "0.1.1"
 description = "This library contains common functionalities which are used across a broad range of apps and other libs."
 authors = [
     {name = "Michael Wellner",email = "michael.wellner@googlemail.com"}
