@@ -22,7 +22,7 @@ The documentation is built with [MkDocs Material](https://squidfunk.github.io/mk
 | `mkdocs.yml` | Site configuration and navigation (`nav`) |
 | `docs/index.md` | Landing page including the module overview table |
 | `docs/api/*.md` | One page per module/package of the API reference |
-| `.github/workflows/docs.yml` | Builds and deploys the site to GitHub Pages on every push to `main` |
+| `.github/workflows/docs.yml` | Builds and deploys the site to GitHub Pages on every push to `main` (shared workflow) |
 
 ```bash
 poetry run poe docs         # serve locally with live reload on http://127.0.0.1:8000
@@ -64,9 +64,9 @@ PRs are squash-merged, so the **PR title** becomes the commit on `main` and deci
 The Release PR is regenerated on every push to `main`, so manual edits to it are overwritten. Make final edits right
 before merging.
 
-**Optional LLM polish:** if the repo secret `OPENAI_API_KEY` is set, `scripts/polish_changelog.py` adds a
-*Highlights* summary to the Release PR and rewords the entries. Review it in the Release PR. Every entry and link is
-kept; if the output doesn't pass validation or the API fails, the generated notes stay unchanged.
+**Optional LLM polish:** if the repo secret `OPENAI_API_KEY` is set, the release notes of the Release PR get a
+*Highlights* summary and reworded entries. Review it in the Release PR. Every entry and link is kept; if the output
+doesn't pass validation or the API fails, the generated notes stay unchanged.
 
 ### Fixing versions and release notes
 
@@ -80,18 +80,13 @@ kept; if the output doesn't pass validation or the API fails, the generated note
   END_COMMIT_OVERRIDE
   ```
 
-### Repository settings
+### Pipelines and repository settings
 
-The pipeline relies on these GitHub settings:
-
-- **Settings → General → Pull Requests:** only *Allow squash merging* enabled, with *Default commit message* set to
-  **Pull request title and description**. Otherwise single-commit PRs use the commit message instead of the PR title,
-  and `BREAKING CHANGE:` / `Release-As:` lines in the description don't reach `main`.
-- **Settings → Actions → General → Workflow permissions:** *Allow GitHub Actions to create and approve pull requests*
-  enabled. Otherwise release-please can't open the Release PR.
-- **Settings → Rules → Rulesets:** a branch ruleset for `versions/*` with *Restrict deletions* and *Block force
-  pushes*.
-- **Settings → Secrets and variables → Actions:** `OPENAI_API_KEY` (optional, enables the LLM polish).
+The workflows in `.github/workflows/` only call the shared, reusable workflows from
+[core--devops-workflows](https://github.com/cokeSchlumpf/core--devops-workflows) (`@versions/1`), which also documents
+their inputs. The GitHub settings this repository needs (squash merging, workflow permissions, Pages, rulesets,
+`OPENAI_API_KEY`) are listed in its
+[setup checklist](https://github.com/cokeSchlumpf/core--devops-workflows#setting-up-a-repository).
 
 ## Maintenance Tasks
 
