@@ -8,23 +8,4 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install Poetry
-        run: pipx install poetry==2.1.3
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-          cache: poetry
-
-      - name: Install dependencies
-        run: poetry install --all-extras --with docs
-
-      - name: Run checks
-        run: poetry run poe check
-
-      - name: Build documentation
-        run: poetry run poe docs-build
+    uses: cokeSchlumpf/core--devops-workflows/.github/workflows/python-check.yml@versions/1
