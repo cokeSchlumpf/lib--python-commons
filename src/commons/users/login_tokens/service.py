@@ -212,6 +212,28 @@ class LoginTokenService:
         )
         return LoginRequest(request.id, RequestStatus.SENT, expires_at)
 
+    def request_id_for_link(self, link_token: str) -> str | None:
+        """
+        Find out which request a login link belongs to, without redeeming it,
+        as long as the link can still be redeemed.
+
+        Lets a web app log a user in right away when the link is opened in
+        the browser that requested it (its session holds the request id),
+        and ask for a confirmation click otherwise — mail scanners open links
+        in advance, but never with the requesting browser's session.
+
+        Args:
+            link_token: The token from the link.
+
+        Returns:
+            The request id, or None if no request has this link or it has
+            been redeemed or has expired.
+        """
+        request = self._store.find_by_link_hash(self._hash(link_token))
+        if request is None or request.consumed_at is not None or request.expires_at <= self._clock():
+            return None
+        return request.id
+
     def redeem_link(self, link_token: str) -> RedeemResult:
         """
         Redeem the token from a login link.
