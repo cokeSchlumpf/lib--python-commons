@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.0...v0.2.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* Let web apps look up a login link's request without redeeming it ([#13](https://github.com/cokeSchlumpf/lib--python-commons/issues/13)) ([5b8fe6d](https://github.com/cokeSchlumpf/lib--python-commons/commit/5b8fe6dd035c60d3c55ea2e50f0ed833a93356e0))
+
 ## [0.2.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.1.1...v0.2.0) (2026-10-25)
 
 
