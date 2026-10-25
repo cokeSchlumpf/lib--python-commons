@@ -188,6 +188,31 @@ class TestRedeemLink:
         assert service.redeem_code(request.request_id, sender.last.code).status is RedeemStatus.USED
 
 
+class TestRequestIdForLink:
+    def test_returns_the_request_id_without_redeeming(self, service, sender):
+        request = service.request_login("jane@example.com", link_for=_link)
+        token = _token_from(sender.last.link)
+
+        assert service.request_id_for_link(token) == request.request_id
+        assert service.redeem_link(token).ok
+
+    def test_unknown_link_has_no_request(self, service):
+        assert service.request_id_for_link("not-a-token") is None
+
+    def test_redeemed_link_has_no_request(self, service, sender):
+        service.request_login("jane@example.com", link_for=_link)
+        token = _token_from(sender.last.link)
+        service.redeem_link(token)
+
+        assert service.request_id_for_link(token) is None
+
+    def test_expired_link_has_no_request(self, service, sender, clock):
+        service.request_login("jane@example.com", link_for=_link)
+        clock.advance(15 * 60)
+
+        assert service.request_id_for_link(_token_from(sender.last.link)) is None
+
+
 class TestRedeemCode:
     def test_logs_user_in(self, service, sender):
         request = service.request_login("jane@example.com", link_for=_link, redirect_to="/x")
