@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.2.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.0...v0.2.1) (2026-10-25)
+
+### Highlights
+
+LoginTokenService gains request_id_for_link(link_token), which returns the request id a login link belongs to without redeeming the link. This lets web apps auto-login when the requesting browser opens the link while keeping single-use links safe from mail scanners; the lookup is read-only and returns None for unknown, redeemed, or expired links.
+
+### Bug Fixes
+
+* Let web apps look up a login link's request without redeeming it ([#13](https://github.com/cokeSchlumpf/lib--python-commons/issues/13)) ([5b8fe6d](https://github.com/cokeSchlumpf/lib--python-commons/commit/5b8fe6dd035c60d3c55ea2e50f0ed833a93356e0))
+
+# Pull requests
+
+## #13: fix: Let web apps look up a login link's request without redeeming it
+
+## Summary
+Adds `LoginTokenService.request_id_for_link(link_token) -> str | None`: the id of the request a login link belongs to, without redeeming it.
+
+## Why
+A web app can then log a user in right away when the link is opened in the browser that requested it (its session holds the request id), and ask for a confirmation click otherwise. Mail scanners (e.g. Microsoft Defender Safe Links) open links in advance, but never with the requesting browser's session, so they can't consume the single-use link. PyHX's email login uses this.
+
+## Behaviour
+- Returns the id only while the link can still be redeemed; `None` for an unknown, redeemed or expired link, so a UI can show "link not valid" right away instead of a confirmation button.
+- Read-only: doesn't consume the request or count as an attempt.
+
+## Notes
+- 4 new tests, run against both stores. `poe check` passes locally (ruff, format, mypy, 328 tests).
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
 ## [0.2.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.1.1...v0.2.0) (2026-10-25)
 
 
