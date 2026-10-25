@@ -83,6 +83,8 @@ nav:
       - Storage:
           - Storage: api/storage.md
           - Storage operators: api/storage-operators.md
-      - Users: api/users.md
+      - Users:
+          - Users: api/users.md
+          - Login tokens: api/login-tokens.md
       - Jobs: api/jobs.md
   - Changelog: changelog.md
