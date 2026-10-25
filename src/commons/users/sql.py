@@ -6,7 +6,7 @@ This module provides ``SQLUsersRepository``, a concrete implementation of
 database using SQLAlchemy and SQLModel.
 """
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel  # type: ignore
 
@@ -137,6 +137,23 @@ class SQLUsersRepository(UsersRepository):
             db_user = session.merge(user)
             session.delete(db_user)
             session.commit()
+
+    def find_user_by_email(self, email: str) -> RegisteredUser | None:
+        with self._create_session() as session:
+            results = list(
+                session.execute(
+                    select(RegisteredUser).where(
+                        func.lower(RegisteredUser.email_) == email.lower()  # type: ignore[arg-type]
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if len(results) > 1:
+                raise ValueError(f"Multiple users found with email `{email}`.")
+            for user in results:
+                session.expunge(user)
+            return results[0] if results else None
 
     def find_user_by_id(self, user_id: str) -> RegisteredUser | None:
         with self._create_session() as session:

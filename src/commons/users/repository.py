@@ -166,6 +166,24 @@ class UsersRepository(abc.ABC):
         return self._find_role_by_name(name)
 
     @abc.abstractmethod
+    def find_user_by_email(self, email: str) -> RegisteredUser | None:
+        """
+        Find a user by their email address.
+
+        The comparison is case-insensitive, as email addresses are commonly entered with varying case.
+
+        Args:
+            email: The user's email address.
+
+        Returns:
+            The RegisteredUser if found, None otherwise.
+
+        Raises:
+            ValueError: If more than one user is registered with the given email address.
+        """
+        ...
+
+    @abc.abstractmethod
     def find_user_by_id(self, user_id: str) -> RegisteredUser | None:
         """
         Find a user by their unique ID.
@@ -223,6 +241,25 @@ class UsersRepository(abc.ABC):
             List of RoleAssignments for the user.
         """
         ...
+
+    def get_user_by_email(self, email: str) -> RegisteredUser:
+        """
+        Get a user by their email address, raising an error if not found.
+
+        Args:
+            email: The user's email address (compared case-insensitively).
+
+        Returns:
+            The RegisteredUser.
+
+        Raises:
+            KeyError: If no user exists with the given email address.
+            ValueError: If more than one user is registered with the given email address.
+        """
+        user = self.find_user_by_email(email)
+        if not user:
+            raise KeyError(f"No user found with email `{email}`.")
+        return user
 
     def get_user_by_id(self, user_id: str) -> RegisteredUser:
         """
