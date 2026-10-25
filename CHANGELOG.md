@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.1.1...v0.2.0) (2026-10-25)
+
+
+### Features
+
+* Add find_user_by_email and get_user_by_email to UsersRepository ([#10](https://github.com/cokeSchlumpf/lib--python-commons/issues/10)) ([a7a5a31](https://github.com/cokeSchlumpf/lib--python-commons/commit/a7a5a319bca9e3a245c37a8b876dfeeb742bcd29))
+* Add passwordless login with link or code (commons.users.login_tokens) ([#12](https://github.com/cokeSchlumpf/lib--python-commons/issues/12)) ([4c072b9](https://github.com/cokeSchlumpf/lib--python-commons/commit/4c072b9dc1c4ce2d7161b3f33f143a757b21dab0))
+
 ## [0.1.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.1.0...v0.1.1) (2026-09-26)
 
 ### Highlights
