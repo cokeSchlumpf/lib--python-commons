@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.1...v0.2.2) (2026-10-31)
+
+
+### Documentation
+
+* Set up the change workflow ([#15](https://github.com/cokeSchlumpf/lib--python-commons/issues/15)) ([15c3310](https://github.com/cokeSchlumpf/lib--python-commons/commit/15c3310f59948e01994f6cead5b227d20a846a64))
+
 ## [0.2.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.0...v0.2.1) (2026-10-25)
 
 ### Highlights
