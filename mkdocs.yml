@@ -86,5 +86,7 @@ nav:
       - Users:
           - Users: api/users.md
           - Login tokens: api/login-tokens.md
+      - Events: api/events.md
+      - Live streams: api/streams.md
       - Jobs: api/jobs.md
   - Changelog: changelog.md
