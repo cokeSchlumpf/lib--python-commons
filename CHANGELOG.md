@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.1...v1.0.0) (2026-10-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* Add event patterns and require Python 3.14 ([#18](https://github.com/cokeSchlumpf/lib--python-commons/issues/18))
+
+### Features
+
+* Add event patterns and require Python 3.14 ([#18](https://github.com/cokeSchlumpf/lib--python-commons/issues/18)) ([5c65d46](https://github.com/cokeSchlumpf/lib--python-commons/commit/5c65d469baa6a7baefdf3416e3125baa1be437b4))
+
 ## [0.2.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.0...v0.2.1) (2026-10-25)
 
 ### Highlights
