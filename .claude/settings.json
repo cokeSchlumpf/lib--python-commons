@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "wellner-platform": {
+      "source": {
+        "source": "git",
+        "url": "git@github.com:cokeSchlumpf/core--platform.git",
+        "ref": "main"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "core-agent-skills@wellner-platform": true
+  }
+}
