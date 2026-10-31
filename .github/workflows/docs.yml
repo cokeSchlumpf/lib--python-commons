@@ -18,3 +18,5 @@ concurrency:
 jobs:
   docs:
     uses: cokeSchlumpf/core--devops-workflows/.github/workflows/python-docs.yml@versions/1
+    with:
+      python-version: "3.14"

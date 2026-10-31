@@ -2,11 +2,11 @@
 
 `commons` is a library of common functionality that is used across a broad range of apps and other libraries.
 It bundles small, well-tested helpers (string, dict, date & time operators, …) with larger building blocks for
-settings, database access, file storage, user management and background jobs.
+settings, database access, file storage, user management, background jobs, events with a transactional outbox and live streams.
 
 ## Installation
 
-The library is installed directly from GitHub and requires Python 3.12 or newer. Pin it to a release tag
+The library is installed directly from GitHub and requires Python 3.14 or newer. Pin it to a release tag
 (e.g. `v1.0.0`) or follow a major version with its branch (e.g. `versions/1`, always the latest `1.x` release).
 All releases are listed in the [changelog](changelog.md).
 
