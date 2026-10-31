@@ -2518,5 +2518,5 @@ azure = ["azure-identity", "azure-storage-blob"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.12, <4.0"
-content-hash = "903a3c0f640903d79f6b5d6dd31f78364c31d569367034e6680acc0b49c55c2f"
+python-versions = ">=3.14, <4.0"
+content-hash = "992a709c56cfe5e8fec7b1d2ab5c9e2d9c0317849f0ae78bb2f82752d5014eba"

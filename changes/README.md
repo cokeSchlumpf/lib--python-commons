@@ -26,3 +26,5 @@ A change keeps its number `T-<n>` from the backlog to the end; numbers are never
 Most important first (reorder by moving lines); items not listed have the lowest priority.
 
 <!-- One line per item: - [T-<n> <Title>](01--backlog/T-<n>--<slug>.md): <a few words>. -->
+
+- [T-002 Time-ordered UUIDv7 ids](01--backlog/T-002--uuid7-ids.md): new ids of `commons` as UUIDv7, after the move to Python 3.14 (T-001).
