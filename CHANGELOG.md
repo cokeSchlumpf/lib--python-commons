@@ -2,10 +2,29 @@
 
 ## [0.2.2](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.1...v0.2.2) (2026-10-31)
 
+### Highlights
+
+This release adds a formal change workflow so future changes are tracked in the repository under changes/ (intent, spec, plan) and documents shared agent rules in CLAUDE.md. It also configures the core-agent-skills plugin and introduces main-branch protections that require PRs with conventional commit titles.
 
 ### Documentation
 
-* Set up the change workflow ([#15](https://github.com/cokeSchlumpf/lib--python-commons/issues/15)) ([15c3310](https://github.com/cokeSchlumpf/lib--python-commons/commit/15c3310f59948e01994f6cead5b227d20a846a64))
+* Introduce a documented change workflow and agent skills configuration so changes follow the new changes/ process and agents follow the shared CLAUDE.md rules ([#15](https://github.com/cokeSchlumpf/lib--python-commons/issues/15)) ([15c3310](https://github.com/cokeSchlumpf/lib--python-commons/commit/15c3310f59948e01994f6cead5b227d20a846a64))
+
+# Pull requests
+
+## #15: docs: Set up the change workflow
+
+Sets up the change workflow and the agent skills of [core--platform](https://github.com/cokeSchlumpf/core--platform) (plugin `core-agent-skills`): every change from now on goes through `changes/` (intent, spec, plan), and agents follow the shared rules in `CLAUDE.md`.
+
+## Changes
+
+- `changes/` with its README and the folders backlog, open and closed.
+- `CLAUDE.md` with the shared section (written by `core-tools update-claude-md`) and a part about lib--python-commons; it is no longer ignored in `.gitignore`.
+- `.claude/settings.json`: the marketplace `wellner-platform` and the plugin `core-agent-skills`.
+
+## After merging
+
+- A ruleset on `main`: changes only through PRs (squash), no deletion or force push, the check `pr-title / conventional-commit` must pass.
 
 ## [0.2.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.0...v0.2.1) (2026-10-25)
 
