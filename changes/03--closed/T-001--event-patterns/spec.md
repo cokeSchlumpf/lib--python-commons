@@ -156,3 +156,25 @@ None.
 - Domain events, handlers and processes of the apps and libraries.
 - Compatibility with the stored events, file logs and settings of existing apps (decided while specifying).
 - `uuid7` for the other ids of `commons` (backlog T-002); updating the Python standard in the `core--platform` note.
+
+## Outcome
+
+Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
+
+- **D1** The reusable `python-docs.yml` defaults to Python 3.12 too, so `docs.yml` also passes `python-version: "3.14"`.
+- **D2** `poe check` runs mypy on `src/` only. That an app's bundle is accepted as `HasOutbox` (concern 1) was proven by running `mypy --check-untyped-defs` on `tests/test_events_background_workers.py` and `tests/test_events_settings.py` once. It isn't checked continuously.
+- **F1** The broker, the event logs and the live streams are the code of `lib--conversations` (GitHub `main`), unchanged apart from imports and docstrings (compared as syntax trees). Its broker and in-memory stream tests were taken over unchanged.
+- **F2** Tests that depend on the conversations domain (a conversation answered in the background, SSE) or on `ag_ui`/`pydantic_ai` (typed streams) were not taken over. The behavior they covered is tested with a minimal `outbox` bundle and plain Pydantic models instead. Tests for the settings, the envelope's JSON round trip and every way of opening a notifying unit of work are new.
+- **F3** Python 3.14 needs Poetry newer than 2.1.3 in CI. Poetry 2.1.3 can't set up a 3.14 environment (`Current Python version (3.12.3) is not allowed`). `core--devops-workflows` now defaults to Poetry 2.5.1 (its PR #5, release 1.0.2 on `versions/1`). Its PR #4 (`poetry env use`) was based on a wrong diagnosis and was reverted by #5.
+- **F4** `release-please-config.json` doesn't set `bump-minor-pre-major`, so the breaking `feat!` releases `commons` as 1.0.0 and moves `versions/1`. `versions/0` stays at 0.2.1.
+
+Rollout: `lib--python-commons` PR #18 (`feat!`) releases 1.0.0 on `versions/1` once merged. `core--devops-workflows` 1.0.2 (PRs #4, #5) is already released.
+
+Open after this change (owner: Michael Wellner):
+
+- Migrate `lib--conversations` (its T-008): switch to this `commons` on `versions/1`, drop its copy and its `conversations_outbox_events`, and subscribe its handlers on the app's workers.
+- Migrate `app--beleglotse`: Python 3.14, `commons` on `versions/1`, drop its copy; move its handler and stale-run job to `subscribe` and `maintenance`.
+- Python 3.14 for the other consumers (`pyhx`, `app--cross-border-rules`) before they take `versions/1`.
+- Update the `core--platform` note on Python libraries: it still names `>=3.12` as the standard.
+- UUIDv7 for the other ids of `commons` (backlog T-002).
+- Optionally run mypy on `tests/` in `poe check`, so `HasOutbox` stays checked (D2).
