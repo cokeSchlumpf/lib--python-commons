@@ -101,3 +101,15 @@ None. The developer asked for spec, plan and implementation in one go and review
 - Paging of listings.
 - Further metadata: content type, ETag, custom blob metadata, and anything with domain meaning (title, owner, tags, permissions); those stay in the apps, linked by the key.
 - Faster `SQLFiles` queries (filtering in SQL, not loading the bytes).
+
+## Outcome
+
+Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
+
+- **D1** `LocalFiles.list_directory` returns an empty listing for a path that resolves outside the root (e.g. `/..`). The spec didn't name it; without it, `iterdir` would list folders outside the storage.
+- **F1** `SQLFiles` had no test against a real database before; the shared tests in `tests/test_storage_directories.py` now run it against SQLite, together with `LocalFiles`, `FilesWithPrefix`, `AzureFiles` (in-memory fake of the `ContainerClient`) and a minimal subclass of `Files` outside commons.
+- **F2** azure-storage-blob 12.28 returns a `BlobPrefix` whose `name` is the full prefix with a trailing `/` (e.g. `foo/bar/`); the directory key is that name with `/` in front and without the trailing `/`.
+
+Rollout: in lib--python-commons with the pull request `feat(storage): list directories and file metadata in Files`; released as 1.4.0 on `versions/1` once release-please's Release PR is merged.
+
+Open after this change: a test of `AzureFiles` against Azurite or a real container (concern 1), and faster `SQLFiles` queries without loading the bytes (concern 2), when needed. Owner: Michael Wellner.
