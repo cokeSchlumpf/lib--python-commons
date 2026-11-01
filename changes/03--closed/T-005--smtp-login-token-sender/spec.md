@@ -177,3 +177,22 @@ None.
 - Request context such as the browser's language in the login mail (backlog T-006).
 - Retries, queues or sending in the background.
 - The pyhx guide (`docs/guides/user-authentication.md`); the developer updates it later.
+
+## Outcome
+
+Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
+
+- **D1** `password`, `username` and `from_address` must be strings; a non-string value is rejected instead of converted (F1).
+- **F1** `commons.settings` evaluates every `APP__*` value with `ast.literal_eval`: `APP__SMTP__PASSWORD=123456` would become an int, and converting it back can change the value (`1_000` → `1000`). A numeric password is set quoted: `APP__SMTP__PASSWORD='"123456"'`; the error message says so.
+- **F2** `read_settings_object` returns `{}` for a missing section instead of raising `KeyError`, contrary to the docstring of `_get_nested`. `SMTPSettings.read()` relies on Pydantic instead, whose error names the missing `host` and `from_address`; `_get_nested` is left unchanged, as other settings rely on `{}`.
+- **F3** The mail also gets `Date` and a `Message-ID` with the domain of `from_address`, which mail servers and spam filters expect.
+- **F4** The module docstring of `commons.users.login_tokens.smtp` (placeholders, overrides, wiring into pyhx) is rendered on the docs page "Login tokens" under "Sending by email".
+
+Rollout: merged with PR #32 into `main` and released with the next minor release of `commons` on `versions/1`.
+
+Open after this change:
+
+- Real delivery through Strato is not tested yet (concern 1); it is checked with the first deployment of `app--casesight` with the sender (Michael Wellner).
+- Outbound SMTP from Azure App Service (concern 2) is confirmed in that casesight change (Michael Wellner).
+- The pyhx guide `docs/guides/user-authentication.md` still says "Implement `SendLoginTokenPort`"; Michael Wellner updates it.
+- Request context in the login mail: backlog T-006.
