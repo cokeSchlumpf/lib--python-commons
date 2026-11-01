@@ -96,6 +96,9 @@ class UsersRepository(abc.ABC):
         """
         Verify credentials and return the user if valid.
 
+        A user without a password (``password_hash`` is ``None`` or empty) is never
+        authenticated, whatever password is given.
+
         Args:
             username: The username to authenticate.
             password: The plain-text password to verify.
@@ -104,7 +107,8 @@ class UsersRepository(abc.ABC):
             The authenticated RegisteredUser if credentials are valid, None otherwise.
         """
         user = self.find_user_by_username(username)
-        if not user:
+        if not user or not user.password_hash:
+            # A user without a password can never sign in with one.
             return None
         if self._password_verifier(password, user.password_hash):
             return user
@@ -332,31 +336,49 @@ class UsersRepository(abc.ABC):
         """
         Hash a plain-text password using the configured hasher.
 
+        For hashes to put into the settings, use the command line helper
+        ``python -m commons.users hash-password`` (default bcrypt hasher).
+
         Args:
             password: The plain-text password to hash.
 
         Returns:
             The hashed password string.
+
+        Raises:
+            ValueError: If the password is empty.
         """
+        if not password:
+            raise ValueError("Password must not be empty.")
         return self._password_hasher(password)
 
     def init_from_settings(self, settings: StandardUserSettings) -> None:
         """
         Initialize users from settings configuration.
 
-        Creates or updates users defined in the settings, hashing their passwords
-        and assigning their configured roles.
+        Creates users defined in the settings which do not exist yet and assigns their
+        configured roles. A configured ``password_hash`` is stored as-is; a plain
+        ``password`` is hashed with the configured hasher; a user with neither is
+        created without a password.
+
+        Users which already exist in the repository are left untouched (no password,
+        profile or role changes), so e.g. passwords changed via ``update_password()``
+        are not reset on the next start.
 
         Args:
             settings: The user settings containing user definitions.
         """
         for user_config in settings.users:
-            existing_user = self.find_user_by_username(user_config.username)
+            if self.find_user_by_username(user_config.username):
+                continue
+
+            password_hash = user_config.password_hash
+            if password_hash is None and user_config.password is not None:
+                password_hash = self.hash_password(user_config.password)
 
             user = RegisteredUser.create(
-                id=existing_user.id if existing_user else None,
                 username=user_config.username,
-                password_hash=self.hash_password(user_config.password),
+                password_hash=password_hash,
                 display_name=f"{user_config.firstname} {user_config.lastname}",
                 firstname=user_config.firstname,
                 lastname=user_config.lastname,
@@ -446,13 +468,14 @@ class UsersRepository(abc.ABC):
 
         Args:
             user: The user instance or username whose password should be updated.
-            new_password: The new plain-text password (will be hashed before storage).
+            new_password: The new plain-text password (will be hashed before storage); must not be empty.
 
         Returns:
             The updated RegisteredUser with the new password hash.
 
         Raises:
             KeyError: If a username is provided and no user exists with that username.
+            ValueError: If the new password is empty.
         """
         if isinstance(user, str):
             user = self.get_user_by_username(user)

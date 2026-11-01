@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Optional, Type, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from commons import dict_operators as dicts
 from commons import path_operators
@@ -397,23 +397,61 @@ class StandardUser(BaseModel):
     """A user defined in settings configuration.
 
     Used for bootstrapping users from configuration files (e.g., settings.toml).
+
+    At most one of ``password`` or ``password_hash`` may be set. Prefer
+    ``password_hash`` so no plain-text password is kept in the settings. A user
+    with neither has no password: they can't sign in with a password, only by
+    other means such as an email link or code (``commons.users.login_tokens``).
+
+    Generate a hash with the command line helper (prompts for the password)::
+
+        python -m commons.users hash-password
+
+        # or non-interactively
+        echo -n "secret" | python -m commons.users hash-password --stdin
+
+    and put the printed value into the settings::
+
+        [[users]]
+        username = "john.doe"
+        firstname = "John"
+        lastname = "Doe"
+        email = "john@example.com"
+        password_hash = "$2b$12$..."
+
+    The hash must match the repository's password verifier (bcrypt by default).
     """
 
     username: str = Field(description="Unique username for authentication.")
     firstname: str = Field(description="User's first name.")
     lastname: str = Field(description="User's last name.")
     email: str = Field(description="User's email address.")
-    password: str = Field(description="Plain-text password (will be hashed when creating the user).")
+    password: str | None = Field(
+        default=None, description="Plain-text password (will be hashed when creating the user)."
+    )
+    password_hash: str | None = Field(
+        default=None, description="Pre-computed password hash (stored as-is when creating the user)."
+    )
     roles: list[RoleAssignmentConfig] = Field(
         default_factory=list, description="List of role names to assign to the user."
     )
+
+    @model_validator(mode="after")
+    def _check_password_or_hash(self) -> "StandardUser":
+        if self.password is not None and self.password_hash is not None:
+            raise ValueError(f"User `{self.username}`: set at most one of `password` or `password_hash`, not both.")
+        return self
 
 
 class StandardUserSettings(BaseModel):
     """Settings container for user definitions.
 
     Reads user configuration from settings files and provides a list of users
-    to be created or synchronized with the user repository.
+    to be created or synchronized with the user repository (see
+    ``UsersRepository.init_from_settings()``).
+
+    Passwords should be configured as ``password_hash`` per user; create the hash
+    with ``python -m commons.users hash-password`` (see :class:`StandardUser`).
     """
 
     model_config = ConfigDict(extra="ignore")

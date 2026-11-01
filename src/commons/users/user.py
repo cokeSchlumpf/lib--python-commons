@@ -599,12 +599,16 @@ class RegisteredUser(SQLModel, table=True):
     This class implements the ``User`` protocol and is a SQLModel table class.
 
     Use ``RegisteredUser.create()`` to construct instances with proper defaults.
-    Use ``UsersRepository.hash_password()`` to generate password hashes.
+    Use ``UsersRepository.hash_password()`` to generate password hashes in code,
+    or ``python -m commons.users hash-password`` on the command line (e.g. for
+    ``password_hash`` of users configured in the settings).
 
     Attributes:
         id: Unique identifier (UUID), auto-generated if not provided.
         username: Unique login username.
-        password_hash: Bcrypt-hashed password (never store plain passwords).
+        password_hash: Bcrypt-hashed password (never store plain passwords), or ``None``
+            for a user without a password, who can't sign in with a password
+            (e.g. users who sign in with an email link or code only).
         display_name: Human-readable name for display.
         firstname: First name (optional).
         lastname: Last name (optional).
@@ -654,7 +658,8 @@ class RegisteredUser(SQLModel, table=True):
         serialization_alias="username",
         sa_column=Column("username", String(64), unique=True),
     )
-    password_hash_: str = Field(
+    password_hash_: str | None = Field(
+        default=None,
         validation_alias="password_hash",
         serialization_alias="password_hash",
         sa_column=Column("password_hash", String(256)),
@@ -689,7 +694,7 @@ class RegisteredUser(SQLModel, table=True):
         return self.username_
 
     @property
-    def password_hash(self) -> str:
+    def password_hash(self) -> str | None:
         return self.password_hash_
 
     @property
@@ -737,7 +742,7 @@ class RegisteredUser(SQLModel, table=True):
     @staticmethod
     def create(
         username: str,
-        password_hash: str,
+        password_hash: str | None,
         display_name: str,
         *,
         id: str | None = None,
@@ -750,7 +755,8 @@ class RegisteredUser(SQLModel, table=True):
 
         Args:
             username: Unique login username (required).
-            password_hash: Pre-hashed password. Use ``UsersRepository.hash_password()``
+            password_hash: Pre-hashed password, or ``None`` for a user without a password.
+                Use ``UsersRepository.hash_password()``
                 to generate this value.
             display_name: Human-readable display name (required).
             id: Unique identifier. Auto-generated UUID if not provided.

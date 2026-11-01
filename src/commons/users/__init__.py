@@ -47,6 +47,12 @@ User operations are performed through repository classes:
 - **SQLUsersRepository**: Concrete implementation using SQLAlchemy/SQLModel for
   database persistence.
 
+Command Line
+------------
+``python -m commons.users hash-password`` prints a bcrypt hash for a password, to be
+used as ``password_hash`` of users defined in the settings (see
+``commons.settings.StandardUser``).
+
 Example Usage
 -------------
 ::
