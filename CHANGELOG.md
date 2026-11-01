@@ -2,6 +2,14 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.4.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.3.0...v1.4.0) (2026-11-01)
+
+
+### Features
+
+* **storage:** list directories and file metadata in Files ([5918749](https://github.com/cokeSchlumpf/lib--python-commons/commit/5918749861b9124fb282e418f589fd4dc35a91eb))
+* store the user's language and send login mails in it (T-007) ([73eebc3](https://github.com/cokeSchlumpf/lib--python-commons/commit/73eebc3992fccabe013aa3e88d9e2e49aa06bc9d))
+
 ## [1.3.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.2.0...v1.3.0) (2026-11-01)
 
 
