@@ -10,7 +10,7 @@ Usage::
     echo -n "secret" | python -m commons.users hash-password --stdin
 
 The printed hash can be used as ``password_hash`` of a user in the settings
-(see :class:`commons.settings.StandardUser`).
+(see [`StandardUser`][commons.settings.StandardUser]).
 """
 
 import argparse

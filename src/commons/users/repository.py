@@ -64,7 +64,7 @@ class UsersRepository(abc.ABC):
     Subclasses must implement the abstract methods to provide database-specific operations.
 
     Args:
-        default_roles: Roles defined in code; see "Default Roles" in :mod:`commons.users`.
+        default_roles: Roles defined in code; see "Default Roles" in [`commons.users`][commons.users].
         anonymous_default_permissions: Role assignments applied to anonymous (unauthenticated) users.
         authenticated_default_permissions: Role assignments applied to authenticated but unregistered users.
         registered_default_permissions: Role assignments applied to all registered users.

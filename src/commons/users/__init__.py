@@ -22,7 +22,7 @@ The module defines three concrete user types, all implementing the ``User`` prot
    SQLModel table class. Created via ``RegisteredUser.create()``. A registered user
    may have no password (``password_hash`` is ``None``): they can't sign in with a
    password, only by other means such as an email link or code
-   (:mod:`commons.users.login_tokens`).
+   ([`commons.users.login_tokens`][commons.users.login_tokens]).
 
 Permission System
 -----------------

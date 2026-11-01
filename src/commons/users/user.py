@@ -435,7 +435,7 @@ class Permission(SQLModel, table=True):
     When checking permissions, a granted permission also covers its sub-paths:
     granting ``"/admin"`` implicitly grants ``"/admin/delete"``, ``"/admin/users"``, etc.
 
-    Permission names are normalized paths (see "Paths" in :mod:`commons.users`): each
+    Permission names are normalized paths (see "Paths" in [`commons.users`][commons.users]): each
     ``"/"``-separated segment holds only lowercase letters, numbers and dashes;
     ``Role.create()`` and the repository normalize the names they are given.
 
@@ -537,7 +537,7 @@ class Scope(SQLModel, table=True):
     to child scopes: a role assigned to ``"/projects"`` also covers
     ``"/projects/alpha"`` and ``"/projects/beta"``.
 
-    Scope names are normalized paths (see "Paths" in :mod:`commons.users`): each
+    Scope names are normalized paths (see "Paths" in [`commons.users`][commons.users]): each
     ``"/"``-separated segment holds only lowercase letters, numbers and dashes, and
     ``"/"`` is the root, which contains every scope. The repository normalizes the
     scopes it is given.

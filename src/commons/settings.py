@@ -459,7 +459,7 @@ class StandardUserSettings(BaseModel):
     ``UsersRepository.init_from_settings()``).
 
     Passwords should be configured as ``password_hash`` per user; create the hash
-    with ``python -m commons.users hash-password`` (see :class:`StandardUser`).
+    with ``python -m commons.users hash-password`` (see [`StandardUser`][commons.settings.StandardUser]).
     """
 
     model_config = ConfigDict(extra="ignore")

@@ -53,7 +53,7 @@ class SQLUsersRepository(UsersRepository):
         default_roles: Roles defined in code. They are synced into the database on
             creation (marked as default roles, with exactly these permissions); default
             roles no longer listed are deleted with their assignments. They can't be
-            changed or deleted at runtime. See "Default Roles" in :mod:`commons.users`.
+            changed or deleted at runtime. See "Default Roles" in [`commons.users`][commons.users].
         anonymous_default_permissions: Role assignments automatically applied
             to anonymous (unauthenticated) users.
         authenticated_default_permissions: Role assignments automatically applied
