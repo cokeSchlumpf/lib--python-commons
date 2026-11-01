@@ -49,3 +49,15 @@ None.
 ## Out of scope
 
 - Further user preferences, language-specific custom templates in `app.login_tokens`, resolving the language of a request (pyhx T-004).
+
+## Outcome
+
+Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
+
+- **F1** `UsersRepository.update_password` rebuilt the user without the new field and would have reset `locale` on every password change; it now keeps it (tested).
+- **F2** `RegisteredUser.locale` is a property with a setter (the other fields are read-only properties), so callers such as pyhx can change the language of a loaded user and save it with `upsert_user`.
+- **F3** The migration statement is built by `_add_users_locale_statement(dialect)` and tested for SQLite and mssql; the existing test that used `"fr"` as an unknown mail language now uses `"es"`.
+
+Rollout: PR #35, released as commons 1.4.0 on `versions/1` after the developer's review and merge.
+
+Open after this change: the first run of the migration on Azure SQL happens with the CaseSight release of T-003 in UAT (developer checks it); pyhx T-004 uses the user language and passes the mail language.
