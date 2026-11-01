@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from commons.settings import (
+    AppSettings,
     read_settings,
     read_settings_object,
     _convert_value,
@@ -274,3 +275,23 @@ class TestReadSettingsObject:
         assert isinstance(result, PydanticLikeModel)
         assert result.host == "LOCALHOST"
         assert result.port == 5432
+
+
+class TestAppSettings:
+    def _read(self, tmp_path):
+        with patch("commons.path_operators.get_project_root_dir", return_value=tmp_path):
+            with patch.object(Path, "home", return_value=tmp_path / "nonexistent_home"):
+                return read_settings_object("", AppSettings)
+
+    def test_public_url_is_empty_by_default(self, tmp_path, clean_app_env):
+        assert self._read(tmp_path).public_url == ""
+
+    def test_public_url_from_env_var(self, tmp_path, clean_app_env, monkeypatch):
+        monkeypatch.setenv("APP__PUBLIC_URL", "https://demo.sbx.casesight.io")
+
+        assert self._read(tmp_path).public_url == "https://demo.sbx.casesight.io"
+
+    def test_public_url_without_trailing_slash(self, tmp_path, clean_app_env):
+        (tmp_path / "settings.toml").write_text('[app]\npublic_url = "https://app.example.com/"\n')
+
+        assert self._read(tmp_path).public_url == "https://app.example.com"
