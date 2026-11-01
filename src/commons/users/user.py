@@ -20,7 +20,7 @@ Classes:
 import re
 from typing import Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import Column, ForeignKey, PrimaryKeyConstraint, String
+from sqlalchemy import Column, ForeignKey, PrimaryKeyConstraint, String, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel  # type: ignore
 
 from commons.id_operators import new_id
@@ -603,6 +603,7 @@ class RoleAssignment(SQLModel, table=True):
     """
 
     __tablename__ = "role_assignments"  # type: ignore
+    __table_args__ = (UniqueConstraint("user_id", "scope_name", "role_name"),)
 
     id: str = Field(
         default_factory=new_id,

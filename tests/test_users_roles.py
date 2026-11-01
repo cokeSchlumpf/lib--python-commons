@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import create_engine, event
 
 from commons.settings import RoleAssignmentConfig
-from commons.users import RegisteredUser, Role, SQLUsersRepository
+from commons.users import AnonymousUser, RegisteredUser, Role, RoleAssignment, SQLUsersRepository
 from commons.users.repository import DefaultRoleAssignment
 from commons.users.user import _normalize_path
 
@@ -145,3 +145,107 @@ class TestContainment:
 
     def test_root_scope_contains_everything(self, repo):
         assert repo.role_has_permission("/", "viewer", "/any/scope", "/read")
+
+
+class TestAssignments:
+    def test_assigning_twice_returns_the_first_assignment(self, repo):
+        user = _user(repo, "jane")
+
+        first = repo.add_assignment(user, "/app", "viewer")
+        second = repo.add_assignment(user, "/App/", "viewer")
+
+        assert second.id == first.id
+        assert len(repo.get_role_assignments(user)) == 1
+
+    def test_same_role_on_a_scope_and_below_it_are_two_assignments(self, repo):
+        user = _user(repo, "jane")
+        on_app = repo.add_assignment(user, "/app", "admin")
+        repo.add_assignment(user, "/app/foo/bar", "admin")
+
+        assert len(repo.get_role_assignments(user)) == 2
+
+        repo.remove_assignment(on_app)
+
+        assert repo.has_permission(user, "/app/foo/bar", "/write")
+        assert not repo.has_permission(user, "/app", "/write")
+
+    def test_other_roles_on_the_same_scope_are_separate(self, repo):
+        user = _user(repo, "jane")
+        repo.add_assignment(user, "/app", "viewer")
+        repo.add_assignment(user, "/app", "admin")
+
+        assert {a.role_name for a in repo.get_role_assignments(user)} == {"viewer", "admin"}
+
+    def test_unknown_role_raises_and_writes_nothing(self, repo):
+        user = _user(repo, "jane")
+
+        with pytest.raises(KeyError, match="no-such-role"):
+            repo.add_assignment(user, "/app", "no-such-role")
+
+        assert repo.get_role_assignments(user) == []
+        assert repo.list_assignments("/") == []
+
+
+class TestFailClosed:
+    def test_assignment_to_a_missing_role_is_skipped_and_logged(self, repo, monkeypatch, caplog):
+        user = _user(repo, "jane")
+        repo.add_assignment(user, "/app", "viewer")
+        stored = repo.get_role_assignments(user)
+        # The state a vanished role leaves behind (e.g. deleted while foreign keys were off).
+        vanished = RoleAssignment(scope_name="/app", role_name="vanished", user_id=user.id)
+        monkeypatch.setattr(repo, "get_role_assignments", lambda _user: [vanished, *stored])
+
+        assert repo.has_permission(user, "/app", "/read")  # the viewer assignment still counts
+        assert not repo.has_permission(user, "/app", "/write")  # the vanished role grants nothing
+        assert "Role `vanished` on scope `/app` doesn't exist" in caplog.text
+
+    def test_default_permission_with_a_missing_role_grants_nothing(self, engine, caplog):
+        repo = SQLUsersRepository(
+            engine, anonymous_default_permissions=[DefaultRoleAssignment(scope="/public", role="missing")]
+        )
+
+        assert not repo.has_permission(AnonymousUser.get(), "/public", "/read")
+        assert "Role `missing` on scope `/public` doesn't exist" in caplog.text
+
+
+class TestByScope:
+    @pytest.fixture
+    def tenants(self, repo):
+        alice, bob, carol = _user(repo, "alice"), _user(repo, "bob"), _user(repo, "carol")
+        repo.add_assignment(alice, f"/app/tenants/{TENANT_A}", "tenant-admin")
+        repo.add_assignment(bob, f"/app/tenants/{TENANT_A}/cases/1", "viewer")
+        repo.add_assignment(bob, f"/app/tenants/{TENANT_B}", "viewer")
+        repo.add_assignment(carol, "/app", "admin")
+        repo.add_assignment(carol, f"/app/tenants/{TENANT_A}x", "viewer")
+        return repo
+
+    def test_lists_the_scope_and_below_with_users_loaded(self, tenants):
+        assignments = tenants.list_assignments(f"/app/tenants/{TENANT_A}")
+
+        assert sorted((a.user.username, a.role.name, a.scope.name) for a in assignments) == [
+            ("alice", "tenant-admin", f"/app/tenants/{TENANT_A}"),
+            ("bob", "viewer", f"/app/tenants/{TENANT_A}/cases/1"),
+        ]
+
+    def test_lists_everything_from_the_root(self, tenants):
+        assert len(tenants.list_assignments("/")) == 5
+
+    def test_removes_the_scope_and_below(self, tenants):
+        removed = tenants.remove_assignments(f"/App/Tenants/{TENANT_A}/")
+
+        assert removed == 2
+        assert tenants.list_assignments(f"/app/tenants/{TENANT_A}") == []
+        assert {a.user.username for a in tenants.list_assignments("/")} == {"bob", "carol"}
+        assert len(tenants.list_assignments("/")) == 3
+
+    def test_removes_unused_scope_entries(self, tenants, engine):
+        from sqlalchemy import select
+        from sqlalchemy.orm import Session
+
+        from commons.users.user import Scope
+
+        tenants.remove_assignments(f"/app/tenants/{TENANT_A}")
+
+        with Session(engine) as session:
+            names = set(session.execute(select(Scope.name)).scalars())  # type: ignore[call-overload]
+        assert names == {"/app", f"/app/tenants/{TENANT_B}", f"/app/tenants/{TENANT_A}x"}

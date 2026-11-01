@@ -6,9 +6,12 @@ This module provides ``SQLUsersRepository``, a concrete implementation of
 database using SQLAlchemy and SQLModel.
 """
 
-from sqlalchemy import Engine, func, select
-from sqlalchemy.orm import sessionmaker
-from sqlmodel import SQLModel  # type: ignore
+from typing import Any, cast
+
+from sqlalchemy import CursorResult, Engine, delete, func, or_, select
+from sqlalchemy.orm import Mapped, selectinload, sessionmaker
+from sqlalchemy.sql.elements import ColumnElement
+from sqlmodel import SQLModel, col  # type: ignore
 
 from commons.users.repository import (
     DefaultRoleAssignment,
@@ -96,10 +99,22 @@ class SQLUsersRepository(UsersRepository):
         SQLModel.metadata.create_all(self._engine, checkfirst=True)
 
     def add_assignment(self, user: RegisteredUser | str, scope: str, role: str) -> RoleAssignment:
+        if isinstance(user, str):
+            user = self.get_user_by_username(user)
+        scope = _normalize_path("scope", scope)
+        self.get_role_by_name(role)  # KeyError for an unknown role, before anything is written
+
         with self._create_session() as session:
-            if isinstance(user, str):
-                user = self.get_user_by_username(user)
-            scope = _normalize_path("scope", scope)
+            existing = session.execute(
+                select(RoleAssignment).where(
+                    RoleAssignment.user_id == user.id,  # type: ignore[arg-type]
+                    RoleAssignment.scope_name == scope,  # type: ignore[arg-type]
+                    RoleAssignment.role_name == role,  # type: ignore[arg-type]
+                )
+            ).scalar_one_or_none()
+            if existing:
+                session.expunge(existing)
+                return existing
 
             existing_scope = session.execute(
                 select(Scope).where(Scope.name == scope)  # type: ignore[arg-type]
@@ -191,6 +206,25 @@ class SQLUsersRepository(UsersRepository):
                 session.expunge(ra)
             return results
 
+    def list_assignments(self, scope: str) -> list[RoleAssignment]:
+        scope = _normalize_path("scope", scope)
+        with self._create_session() as session:
+            results = list(
+                session.execute(
+                    select(RoleAssignment)
+                    .where(_in_subtree(col(RoleAssignment.scope_name), scope))
+                    .options(
+                        selectinload(RoleAssignment.user),  # type: ignore[arg-type]
+                        selectinload(RoleAssignment.role),  # type: ignore[arg-type]
+                        selectinload(RoleAssignment.scope),  # type: ignore[arg-type]
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            session.expunge_all()
+            return results
+
     def list_roles(self) -> list[Role]:
         with self._create_session() as session:
             results = list(session.execute(select(Role)).scalars().all())
@@ -210,6 +244,17 @@ class SQLUsersRepository(UsersRepository):
             if db_assignment:
                 session.delete(db_assignment)
                 session.commit()
+
+    def remove_assignments(self, scope: str) -> int:
+        scope = _normalize_path("scope", scope)
+        with self._create_session() as session:
+            result = session.execute(delete(RoleAssignment).where(_in_subtree(col(RoleAssignment.scope_name), scope)))
+            still_used = select(col(RoleAssignment.scope_name))
+            session.execute(
+                delete(Scope).where(_in_subtree(col(Scope.name), scope), col(Scope.name).not_in(still_used))
+            )
+            session.commit()
+            return cast(CursorResult[Any], result).rowcount
 
     def upsert_role(self, role: Role) -> Role:
         for permission in role.permissions:
@@ -245,3 +290,10 @@ class SQLUsersRepository(UsersRepository):
             if result:
                 session.expunge(result)
             return result
+
+
+def _in_subtree(column: Mapped[str], scope: str) -> ColumnElement[bool]:
+    """The rows whose scope is ``scope`` or below it; ``scope`` is normalized, so it holds neither ``%`` nor ``_``."""
+    if scope == "/":
+        return column.is_not(None)
+    return or_(column == scope, column.like(scope + "/%"))

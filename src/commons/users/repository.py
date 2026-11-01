@@ -1,4 +1,5 @@
 import abc
+import logging
 from typing import Callable
 
 import bcrypt  # type: ignore
@@ -15,6 +16,8 @@ from commons.users.user import (
     User,
 )
 
+
+LOG = logging.getLogger(__name__)
 
 PasswordHasher = Callable[[str], str]
 """A callable that takes a plain-text password and returns a hashed password."""
@@ -92,13 +95,21 @@ class UsersRepository(abc.ABC):
         """
         Add a role assignment to a user.
 
+        A user has a role on a scope at most once: if the assignment exists already, it is
+        returned and nothing is written. The same role on another scope (also one below
+        it) is a separate assignment.
+
         Args:
             user: The user instance or username to assign the role to.
             scope: The scope path (e.g., '/projects/my-project') where the role applies.
             role: The role name to assign.
 
         Returns:
-            The created RoleAssignment.
+            The created (or existing) RoleAssignment.
+
+        Raises:
+            KeyError: If the user or the role doesn't exist.
+            ValueError: If the scope is invalid.
         """
         ...
 
@@ -315,6 +326,9 @@ class UsersRepository(abc.ABC):
         """
         Check whether a user has a specific permission in a scope.
 
+        An entry (default permission or role assignment) whose role doesn't exist grants
+        nothing: it is skipped with a warning in the log, and the other entries still count.
+
         Permission checking is based on the user type:
         - AnonymousUser: Checks anonymous_default_permissions
         - AuthenticatedUser: Checks authenticated_default_permissions
@@ -332,14 +346,9 @@ class UsersRepository(abc.ABC):
         permission = _normalize_path("permission", permission)
 
         if isinstance(user, AnonymousUser):
-            return any(
-                self.role_has_permission(p.scope, p.role, scope, permission) for p in self.anonymous_default_permissions
-            )
+            return any(self._grants(p.scope, p.role, scope, permission) for p in self.anonymous_default_permissions)
         elif isinstance(user, AuthenticatedUser):
-            return any(
-                self.role_has_permission(p.scope, p.role, scope, permission)
-                for p in self.authenticated_default_permissions
-            )
+            return any(self._grants(p.scope, p.role, scope, permission) for p in self.authenticated_default_permissions)
         elif isinstance(user, RegisteredUser):
             return self.registered_user_has_permission(user, scope, permission)
         else:
@@ -433,14 +442,11 @@ class UsersRepository(abc.ABC):
         scope = _normalize_path("scope", scope)
         permission = _normalize_path("permission", permission)
 
-        for default_permission in self.registered_default_permissions:
-            role = self.get_role_by_name(default_permission.role)
-            has_permission = self.role_has_permission(default_permission.scope, role, scope, permission)
-            if has_permission:
-                return True
+        if any(self._grants(p.scope, p.role, scope, permission) for p in self.registered_default_permissions):
+            return True
 
         return any(
-            self.role_has_permission(ra.scope.name, ra.role or self.get_role_by_name(ra.role_name), scope, permission)
+            self._grants(ra.scope_name, ra.role if ra.role is not None else ra.role_name, scope, permission)
             for ra in self.get_role_assignments(user)
         )
 
@@ -541,7 +547,56 @@ class UsersRepository(abc.ABC):
         """
         ...
 
+    @abc.abstractmethod
+    def list_assignments(self, scope: str) -> list[RoleAssignment]:
+        """
+        List the role assignments on a scope and on every scope below it.
+
+        Assignments on scopes above it (which also apply to it) are not included; list
+        the parent scopes to find them.
+
+        Args:
+            scope: The scope path, e.g. ``"/app/tenants/<id>"`` for everyone with a role in a tenant.
+
+        Returns:
+            The assignments, each with its ``user``, ``role`` and ``scope`` loaded.
+        """
+        ...
+
+    @abc.abstractmethod
+    def remove_assignments(self, scope: str) -> int:
+        """
+        Remove the role assignments on a scope and on every scope below it, e.g. when a tenant is deleted.
+
+        Scope entries left without assignments are removed, too. Assignments on scopes
+        above it are kept.
+
+        Args:
+            scope: The scope path.
+
+        Returns:
+            The number of removed assignments.
+        """
+        ...
+
     # Private methods (alphabetically)
+
+    def _grants(self, assigned_scope: str, role: Role | str, scope: str, permission: str) -> bool:
+        """
+        Whether one entry (a role on a scope) grants a permission in a scope; all paths normalized.
+
+        The scope is compared first, so a role is only resolved for entries that matter. A
+        role that doesn't exist grants nothing and is logged, instead of failing the check.
+        """
+        if not self._scope_contains_scope(assigned_scope, scope):
+            return False
+
+        resolved = role if isinstance(role, Role) else self.find_role_by_name(role)
+        if resolved is None:
+            LOG.warning("Role `%s` on scope `%s` doesn't exist; it grants nothing.", role, assigned_scope)
+            return False
+
+        return any(self._permission_contains_permission(p.name, permission) for p in resolved.permissions)
 
     @abc.abstractmethod
     def _find_role_by_name(self, name: str) -> Role | None:
