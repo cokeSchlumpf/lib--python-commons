@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 from commons import string_operators
+from dataclasses import dataclass
+from datetime import datetime
 from io import BytesIO
 
 
@@ -8,11 +10,48 @@ class File(ABC):
     @abstractmethod
     def key(self) -> str: ...
 
+    @property
+    def size(self) -> int:
+        """
+        The size of the file in bytes.
+
+        The backends of commons know it without reading the file; this default reads the content.
+        """
+        return len(self.open().getvalue())
+
+    @property
+    def last_modified(self) -> datetime | None:
+        """
+        When the file was last written (time zone UTC), or `None` if the backend doesn't know it.
+
+        The backends of commons always know it; this default returns `None`.
+        """
+        return None
+
     def get(self) -> BytesIO:
         return self.open()
 
     @abstractmethod
     def open(self) -> BytesIO: ...
+
+
+@dataclass(frozen=True)
+class Directory:
+    """
+    A virtual directory: it exists as long as at least one file is stored below it.
+
+    The key is an absolute path without a trailing slash, e.g. `/foo/bar`.
+    """
+
+    key: str
+
+
+@dataclass(frozen=True)
+class DirectoryListing:
+    """The directories and files directly below a path, each sorted by key."""
+
+    directories: list[Directory]
+    files: list[File]
 
 
 class Files(ABC):
@@ -47,6 +86,44 @@ class Files(ABC):
         /foo/b.txt
         ```
         """
+
+    def list_directory(self, path: str = "/") -> DirectoryListing:
+        """
+        Get the directories and files directly below the provided path, not the ones further down.
+
+        Directories are virtual: a directory is listed if at least one file is stored below it, at any depth.
+        Only full path segments match, as in `list`. `/foo` and `/foo/` are the same path; a path with nothing
+        below it (a file key or a missing key) returns an empty listing.
+
+        With the files
+
+        ```
+        /foo/a.txt
+        /foo/bar/b.txt
+        /foo/bar/baz/c.txt
+        /foo-bar/d.txt
+        ```
+
+        `list_directory("/foo")` returns the directory `/foo/bar` and the file `/foo/a.txt`.
+        """
+        base = path.rstrip("/")
+        directories: set[str] = set()
+        files: list[File] = []
+
+        for file in self.list(path):
+            rest = file.key.removeprefix(base + "/")
+            if rest == file.key:
+                continue  # not below the path
+
+            if "/" in rest:
+                directories.add(base + "/" + rest.split("/", 1)[0])
+            else:
+                files.append(file)
+
+        return DirectoryListing(
+            directories=[Directory(key) for key in sorted(directories)],
+            files=sorted(files, key=lambda f: f.key),
+        )
 
     def put(self, key: str, data: BytesIO) -> None:
         """Adds or overwrites a file."""
