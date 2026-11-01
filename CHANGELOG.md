@@ -2,6 +2,13 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.3.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.2.0...v1.3.0) (2026-11-01)
+
+
+### Features
+
+* add SMTP sender for login tokens ([#32](https://github.com/cokeSchlumpf/lib--python-commons/issues/32)) ([6241d29](https://github.com/cokeSchlumpf/lib--python-commons/commit/6241d293f235d3689415ed5b9a0a6b8906370581))
+
 ## [1.2.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.1.0...v1.2.0) (2026-11-01)
 
 
