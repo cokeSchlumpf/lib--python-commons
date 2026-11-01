@@ -1,8 +1,9 @@
 from commons.settings import AppSettings
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
-from .files import File, Files
+from .files import Directory, DirectoryListing, File, Files
 
 
 class LocalFile(File):
@@ -15,6 +16,14 @@ class LocalFile(File):
     @property
     def key(self) -> str:
         return self._key
+
+    @property
+    def size(self) -> int:
+        return self._path.stat().st_size
+
+    @property
+    def last_modified(self) -> datetime:
+        return datetime.fromtimestamp(self._path.stat().st_mtime, tz=UTC)
 
     def open(self) -> BytesIO:
         return BytesIO(self._path.read_bytes())
@@ -61,6 +70,27 @@ class LocalFiles(Files):
                     files.append(LocalFile(key, file_path))
 
         return files
+
+    def list_directory(self, path: str = "/") -> DirectoryListing:
+        folder = self._key_to_path(path.rstrip("/"))
+        directories: list[Directory] = []
+        files: list[File] = []
+
+        # Keys with `..` must not list folders outside the root.
+        if not folder.is_dir() or not folder.resolve().is_relative_to(self._root.resolve()):
+            return DirectoryListing(directories=directories, files=files)
+
+        for entry in folder.iterdir():
+            key = self._path_to_key(entry)
+            if entry.is_file():
+                files.append(LocalFile(key, entry))
+            elif entry.is_dir() and any(p.is_file() for p in entry.rglob("*")):
+                directories.append(Directory(key))
+
+        return DirectoryListing(
+            directories=sorted(directories, key=lambda d: d.key),
+            files=sorted(files, key=lambda f: f.key),
+        )
 
     def _put(self, key: str, data: BytesIO) -> None:
         path = self._key_to_path(key)

@@ -1,12 +1,15 @@
 """Directory listings and file metadata, the same cases for every backend of `Files`."""
 
+import time
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
 import pytest
+from sqlalchemy import create_engine
 
-from commons.storage import Directory, DirectoryListing, File, Files
+from commons.storage import Directory, DirectoryListing, File, Files, LocalFiles, SQLFiles
 
 
 class _MemoryFile(File):
@@ -46,13 +49,22 @@ class _MemoryFiles(Files):
 
 FilesFactory = Callable[[Path], Files]
 
+# The backends of commons; each must know the metadata of its files.
 BACKENDS: dict[str, FilesFactory] = {
-    "memory": lambda tmp_path: _MemoryFiles(),
+    "local": lambda tmp_path: LocalFiles(tmp_path / "files"),
+    "sql": lambda tmp_path: SQLFiles(create_engine(f"sqlite:///{tmp_path / 'files.db'}")),
 }
 
 
-@pytest.fixture(params=list(BACKENDS))
+@pytest.fixture(params=["memory", *BACKENDS])
 def files(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[Files]:
+    """Every backend, and a minimal subclass outside commons."""
+    yield _MemoryFiles() if request.param == "memory" else BACKENDS[request.param](tmp_path)
+
+
+@pytest.fixture(params=list(BACKENDS))
+def backend(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[Files]:
+    """Every backend of commons."""
     yield BACKENDS[request.param](tmp_path)
 
 
@@ -136,3 +148,70 @@ class TestDefaultMetadata:
 
     def test_last_modified_is_unknown(self) -> None:
         assert _MemoryFile("/a.txt", b"12345").last_modified is None
+
+
+class TestBackendMetadata:
+    def _listed(self, files: Files, key: str) -> list[File]:
+        """The file as returned by `find`, `get`, `list` and `list_directory`."""
+        found = files.find(key)
+        assert found is not None
+        directory = key.rsplit("/", 1)[0]
+        return [
+            found,
+            files.get(key),
+            *[f for f in files.list(directory) if f.key == key],
+            *[f for f in files.list_directory(directory).files if f.key == key],
+        ]
+
+    def test_size_and_last_modified_are_known(self, backend: Files) -> None:
+        before = datetime.now(UTC) - timedelta(seconds=2)
+        backend.put("/x/a.txt", BytesIO(b"12345"))
+        after = datetime.now(UTC) + timedelta(seconds=2)
+
+        listed = self._listed(backend, "/x/a.txt")
+        assert len(listed) == 4
+        for file in listed:
+            assert file.size == 5
+            assert file.last_modified is not None
+            assert file.last_modified.tzinfo is not None
+            assert before <= file.last_modified <= after
+
+    def test_metadata_does_not_open_the_file(self, backend: Files, monkeypatch: pytest.MonkeyPatch) -> None:
+        backend.put("/x/a.txt", BytesIO(b"12345"))
+        listed = self._listed(backend, "/x/a.txt")
+
+        def fail(self: File) -> BytesIO:
+            raise AssertionError("open() must not be called")
+
+        for file in listed:
+            monkeypatch.setattr(type(file), "open", fail)
+            assert file.size == 5
+            assert file.last_modified is not None
+
+    def test_overwrite_changes_last_modified(self, backend: Files) -> None:
+        backend.put("/x/a.txt", BytesIO(b"first"))
+        first = backend.get("/x/a.txt").last_modified
+        time.sleep(0.01)
+        backend.put("/x/a.txt", BytesIO(b"second, longer"))
+        second = backend.get("/x/a.txt")
+
+        assert first is not None and second.last_modified is not None
+        assert second.last_modified > first
+        assert second.size == len(b"second, longer")
+
+
+class TestLocalFiles:
+    def test_empty_folder_is_not_listed(self, tmp_path: Path) -> None:
+        files = LocalFiles(tmp_path)
+        files.put("/x/a.txt", BytesIO(b"a"))
+        (tmp_path / "x" / "empty" / "deeper").mkdir(parents=True)
+
+        assert _keys(files.list_directory("/x")) == ([], ["/x/a.txt"])
+
+    def test_does_not_list_outside_the_root(self, tmp_path: Path) -> None:
+        (tmp_path / "outside.txt").write_bytes(b"secret")
+        files = LocalFiles(tmp_path / "root")
+        files.put("/a.txt", BytesIO(b"a"))
+
+        assert _keys(files.list_directory("/..")) == ([], [])
+        assert _keys(files.list_directory("/../root/..")) == ([], [])
