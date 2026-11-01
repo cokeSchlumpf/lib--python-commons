@@ -10,3 +10,7 @@
 - Naming: `<prefix>--<key>--<key>`, where `--` stands for `__` and `-` for `_` (`APP__DATABASE__MSSQL__PASSWORD` ↔ `hello--database--mssql--password`). Secrets of the prefix `shared--` are loaded first, the app's own prefix overrides them. One vault per stage; the stage isn't part of the name.
 - Enabled by the settings `key_vault.url` and `key_vault.prefix` (`APP__KEY_VAULT__URL`, `APP__KEY_VAULT__PREFIX`); without a URL the layer is skipped, as in local development. Loaded once, with the merged settings; a rotated secret takes effect after a restart.
 - Signed in with `DefaultAzureCredential` (managed identity in Azure, `az login` locally), through the extra `azure` (`azure-identity` is there; `azure-keyvault-secrets` is added).
+
+## Dropped
+
+Dropped without replacement; secrets keep reaching the apps as `APP__*` app settings that the deployment reads from the Key Vault. The layer adds no value here: new secrets are created through Terraform anyway, reading the vault from a laptop has no use case, everyone who can read the OpenTofu state or the App Service configuration already has access to the vault, and keeping the values out of the process environment doesn't protect against code running in the instance, because the app's managed identity could read the vault directly. App Service Key Vault references were considered as the lighter alternative and dropped for the same reason (T-006 of `core--platform`).
