@@ -2,6 +2,14 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.2.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.1.0...v1.2.0) (2026-11-01)
+
+
+### Features
+
+* Add public_url to AppSettings (T-007) ([#27](https://github.com/cokeSchlumpf/lib--python-commons/issues/27)) ([ac2391d](https://github.com/cokeSchlumpf/lib--python-commons/commit/ac2391dfa8260c037be2ec0f80ec5f678d198e5c))
+* Allow hashed passwords and harden scoped role checks ([#25](https://github.com/cokeSchlumpf/lib--python-commons/issues/25)) ([905f379](https://github.com/cokeSchlumpf/lib--python-commons/commit/905f379d30db0d82d496f9b69c36bb550aac2a10))
+
 ## [1.1.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.0.0...v1.1.0) (2026-11-01)
 
 ### Highlights
