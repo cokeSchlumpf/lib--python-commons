@@ -2,6 +2,13 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.5.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.4.0...v1.5.0) (2026-11-01)
+
+
+### Features
+
+* **database:** Unicode text columns on Azure SQL (T-008) ([#39](https://github.com/cokeSchlumpf/lib--python-commons/issues/39)) ([0efe2cc](https://github.com/cokeSchlumpf/lib--python-commons/commit/0efe2cc1b2f422a2988ae3cffd67404ca498afde))
+
 ## [1.4.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.3.0...v1.4.0) (2026-11-01)
 
 
