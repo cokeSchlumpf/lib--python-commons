@@ -31,9 +31,15 @@ class AppSettings:
 
     data_dir: Path
 
-    def __init__(self, version: str = "", environment: str = "", data_dir: str = "", **_kwargs) -> None:
+    public_url: str
+    """Public URL of the app, e.g. `https://app.example.com`, without a trailing slash; empty when unknown (locally)."""
+
+    def __init__(
+        self, version: str = "", environment: str = "", data_dir: str = "", public_url: str = "", **_kwargs
+    ) -> None:
         self.version = version
         self.environment = environment
+        self.public_url = str(public_url).rstrip("/")
 
         if not self.version:
             self.version = _get_git_commit_ref() or "<no version>"
