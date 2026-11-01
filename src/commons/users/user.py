@@ -20,7 +20,7 @@ Classes:
 import re
 from typing import Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import Boolean, Column, ForeignKey, PrimaryKeyConstraint, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, PrimaryKeyConstraint, String, Unicode, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel  # type: ignore
 
 from commons.id_operators import new_id
@@ -717,19 +717,19 @@ class RegisteredUser(SQLModel, table=True):
     display_name_: str = Field(
         validation_alias="display_name",
         serialization_alias="display_name",
-        sa_column=Column("display_name", String(128)),
+        sa_column=Column("display_name", Unicode(128)),
     )
     firstname_: str | None = Field(
         default=None,
         validation_alias="firstname",
         serialization_alias="firstname",
-        sa_column=Column("firstname", String(64)),
+        sa_column=Column("firstname", Unicode(64)),
     )
     lastname_: str | None = Field(
         default=None,
         validation_alias="lastname",
         serialization_alias="lastname",
-        sa_column=Column("lastname", String(64)),
+        sa_column=Column("lastname", Unicode(64)),
     )
     email_: str | None = Field(
         default=None, validation_alias="email", serialization_alias="email", sa_column=Column("email", String(128))

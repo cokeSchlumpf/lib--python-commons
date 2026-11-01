@@ -10,6 +10,7 @@ from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, Session, SQLModel, col, select
 
 from .column_lengths import ID_LENGTH, NAME_LENGTH
+from .types import UnicodeName
 from .entity import EntityMixin
 from .types import UTCDateTime
 
@@ -31,7 +32,7 @@ class HistoryMixin[E: EntityMixin](SQLModel):
     id: str = Field(primary_key=True, max_length=ID_LENGTH)
     history_valid_from: datetime = Field(primary_key=True, sa_type=UTCDateTime)
     history_valid_to: datetime | None = Field(default=None, sa_type=UTCDateTime)
-    history_changed_by_user_displayname: str = Field(max_length=NAME_LENGTH)
+    history_changed_by_user_displayname: str = Field(sa_type=UnicodeName)
     history_changed_by_user_id: str = Field(max_length=NAME_LENGTH)
     history_deleted: bool = Field(default=False)
 

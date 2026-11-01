@@ -10,9 +10,9 @@ from datetime import datetime, timezone
 from typing import Any, Generic, TypeVar
 
 from pydantic import TypeAdapter
-from sqlalchemy import JSON, DateTime, Dialect, String, TypeDecorator
+from sqlalchemy import JSON, DateTime, Dialect, String, TypeDecorator, Unicode
 
-from .column_lengths import ENUM_LENGTH
+from .column_lengths import CODE_LENGTH, ENUM_LENGTH, NAME_LENGTH
 
 T = TypeVar("T")
 
@@ -27,6 +27,28 @@ class EnumString(TypeDecorator[str]):
     """
 
     impl = String(ENUM_LENGTH)
+    cache_ok = True
+
+
+class UnicodeCode(TypeDecorator[str]):
+    """A length-bounded Unicode column (``CODE_LENGTH``) for short text people enter, e.g. a case number.
+
+    ``NVARCHAR(64)`` on SQL Server, where ``VARCHAR`` stores only code page 1252 and turns other characters into
+    ``?``; ``VARCHAR(64)`` elsewhere. Hand it to ``Field(sa_type=...)`` as a type, like `EnumString`
+    (``sa_type=Unicode`` would ignore ``max_length`` and give an unindexable ``NVARCHAR(max)``).
+    """
+
+    impl = Unicode(CODE_LENGTH)
+    cache_ok = True
+
+
+class UnicodeName(TypeDecorator[str]):
+    """A length-bounded Unicode column (``NAME_LENGTH``) for names and titles people enter.
+
+    ``NVARCHAR(255)`` on SQL Server (510 bytes, still indexable), ``VARCHAR(255)`` elsewhere; see `UnicodeCode`.
+    """
+
+    impl = Unicode(NAME_LENGTH)
     cache_ok = True
 
 
