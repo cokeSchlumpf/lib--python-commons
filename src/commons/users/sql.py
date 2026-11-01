@@ -42,13 +42,18 @@ class SQLUsersRepository(UsersRepository):
     to a SQL database. It automatically creates the required tables on
     initialization if they don't exist.
 
+    Existing tables are not migrated: a database created before commons 1.2 (without
+    ``roles.is_default_role`` and the unique role assignments) must be recreated.
+
     Supported databases include SQLite, PostgreSQL, MySQL, and any other
     database supported by SQLAlchemy.
 
     Args:
         engine: SQLAlchemy Engine connected to the database.
-        default_roles: Predefined roles available without database lookup.
-            These roles are checked first when looking up roles by name.
+        default_roles: Roles defined in code. They are synced into the database on
+            creation (marked as default roles, with exactly these permissions); default
+            roles no longer listed are deleted with their assignments. They can't be
+            changed or deleted at runtime. See "Default Roles" in :mod:`commons.users`.
         anonymous_default_permissions: Role assignments automatically applied
             to anonymous (unauthenticated) users.
         authenticated_default_permissions: Role assignments automatically applied
