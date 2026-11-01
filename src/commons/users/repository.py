@@ -514,6 +514,7 @@ class UsersRepository(abc.ABC):
             firstname=user.firstname,
             lastname=user.lastname,
             email=user.email,
+            locale=user.locale,
         )
         return self.upsert_user(updated_user)
 

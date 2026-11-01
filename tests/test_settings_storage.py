@@ -6,7 +6,8 @@ from commons.settings import AzureStorageSettings
 from commons.settings import LocalStorageSettings
 from commons.settings import StorageSettings
 
-#Testing LocalStorageSettings
+
+# Testing LocalStorageSettings
 class TestLocalStorageSettings:
     def test_defaults_to_none_root(self):
         settings = LocalStorageSettings()
@@ -17,7 +18,7 @@ class TestLocalStorageSettings:
         assert settings.root == "/var/data/files"
 
 
-#Testing AzureStorageSettings
+# Testing AzureStorageSettings
 class TestAzureStorageSettingsDefaults:
     def test_default_auth_mode(self):
         settings = AzureStorageSettings()
@@ -65,9 +66,7 @@ class TestAzureStorageSettingsConnectionString:
 
 class TestAzureStorageSettingsAccountKey:
     def test_returns_configured_value(self, caplog):
-        settings = AzureStorageSettings(
-            auth_mode="account_key", account_name="acct", account_key="abc123"
-        )
+        settings = AzureStorageSettings(auth_mode="account_key", account_name="acct", account_key="abc123")
         with caplog.at_level(logging.WARNING):
             assert settings.account_key == "abc123"
         assert caplog.records == []
@@ -92,7 +91,7 @@ class TestAzureStorageSettingsAccountKey:
         assert caplog.records == []
 
 
-#Testing StorageSettings
+# Testing StorageSettings
 class TestStorageSettings:
     def test_default_mode_is_local(self):
         settings = StorageSettings()
@@ -110,7 +109,11 @@ class TestStorageSettings:
     def test_azure_mode_with_azure_block(self):
         settings = StorageSettings(
             mode="azure",
-            azure={"auth_mode": "default_credential", "account_url": "https://x.blob.core.windows.net", "container": "files"},
+            azure={
+                "auth_mode": "default_credential",
+                "account_url": "https://x.blob.core.windows.net",
+                "container": "files",
+            },
         )
         assert settings.mode == "azure"
         assert settings.local is None
@@ -126,7 +129,7 @@ class TestStorageSettings:
         assert settings.azure is None
 
 
-#Integration Testing
+# Integration Testing
 class TestStorageSettingsFromToml:
     def test_reads_azure_section_from_settings_toml(self, tmp_path, clean_app_env):
         settings_file = tmp_path / "settings.toml"

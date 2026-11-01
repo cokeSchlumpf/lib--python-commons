@@ -42,8 +42,9 @@ class SQLUsersRepository(UsersRepository):
     to a SQL database. It automatically creates the required tables on
     initialization if they don't exist.
 
-    Existing tables are not migrated: a database created before commons 1.2 (without
-    ``roles.is_default_role`` and the unique role assignments) must be recreated.
+    Existing tables are not migrated: a database created before commons 1.4 (without
+    ``registered_users.locale``) or before commons 1.2 (without ``roles.is_default_role``
+    and the unique role assignments) must be recreated.
 
     Supported databases include SQLite, PostgreSQL, MySQL, and any other
     database supported by SQLAlchemy.

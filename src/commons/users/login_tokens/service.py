@@ -160,6 +160,7 @@ class LoginTokenService:
         *,
         link_for: Callable[[str], str],
         redirect_to: str | None = None,
+        locale: str | None = None,
     ) -> LoginRequest:
         """
         Request a login link and code for an email address.
@@ -173,6 +174,9 @@ class LoginTokenService:
             link_for: Builds the absolute login URL from the link token.
             redirect_to: Where to go after logging in; returned by the
                 redeem methods.
+            locale: The language of the message (``LoginTokenMessage.locale``),
+                e.g. as pyhx resolves it for the user; ``None`` lets the sender
+                choose.
 
         Returns:
             The request id, what happened, and when the link expires.
@@ -217,6 +221,7 @@ class LoginTokenService:
                 link=link_for(link_token),
                 code=code,
                 expires_at=expires_at,
+                locale=locale,
             )
         )
         return LoginRequest(request.id, RequestStatus.SENT, expires_at)

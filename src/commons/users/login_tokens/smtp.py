@@ -15,9 +15,12 @@ The default one fills ``string.Template`` templates with these placeholders:
 - ``$expires_at``: when they expire, ``YYYY-MM-DD HH:MM UTC``
 
 Write ``$$`` for a literal ``$``; braces (e.g. CSS) need no escaping. Subject
-and text are built in for English (``"en"``) and German (``"de"``), chosen
-with the ``language`` argument; there is no built-in HTML. An app overrides
-them in ``app.login_tokens``::
+and text are built in for English (``"en"``), German (``"de"``), Italian
+(``"it"``) and French (``"fr"``); there is no built-in HTML. Each mail is
+written in the language of its message (``LoginTokenMessage.locale``, e.g. the
+user's language as pyhx resolves it; ``"de-CH"`` counts as ``"de"``) if it is
+built in, else in the ``language`` of the sender. An app overrides the texts
+in ``app.login_tokens``; its templates then apply to every language::
 
     [app.login_tokens]
     mail_subject = "Your code for CaseSight: $code"
@@ -26,12 +29,12 @@ them in ``app.login_tokens``::
     <p>your code is <strong>$code</strong>, or <a href="$link">sign in</a>.</p>
     \"\"\"
 
-In the HTML, the values are HTML-escaped. For anything else (another language
-per user, a template engine, a template file) pass your own mail function.
+In the HTML, the values are HTML-escaped. For anything else (texts of your own
+per language, a template engine, a template file) pass your own mail function.
 
 Wiring it into pyhx::
 
-    sender = SMTPLoginTokenSender(language="de")  # reads app.smtp and app.login_tokens
+    sender = SMTPLoginTokenSender(language="de")  # fallback language; reads app.smtp and app.login_tokens
     EmailTokenLogin(store=SQLLoginTokenStore(engine), sender=sender)
 """
 
@@ -70,7 +73,7 @@ class LoginTokenMail:
 ComposeLoginTokenMail = Callable[[LoginTokenMessage], LoginTokenMail]
 """Builds the login mail for a message, e.g. in the user's language."""
 
-Language = Literal["en", "de"]
+Language = Literal["en", "de", "it", "fr"]
 
 _BUILT_IN: dict[str, tuple[str, str]] = {
     "en": (
@@ -88,6 +91,22 @@ _BUILT_IN: dict[str, tuple[str, str]] = {
         "Oder melden Sie sich mit diesem Link an: $link\n\n"
         "Code und Link sind $valid_minutes Minuten gültig. "
         "Wenn Sie sie nicht angefordert haben, ignorieren Sie diese E-Mail.\n",
+    ),
+    "it": (
+        "Il tuo codice di accesso: $code",
+        "Ciao $name,\n\n"
+        "il tuo codice di accesso è $code.\n"
+        "Oppure accedi con questo link: $link\n\n"
+        "Il codice e il link sono validi per $valid_minutes minuti. "
+        "Se non li hai richiesti, ignora questa email.\n",
+    ),
+    "fr": (
+        "Votre code de connexion : $code",
+        "Bonjour $name,\n\n"
+        "votre code de connexion est $code.\n"
+        "Ou connectez-vous avec ce lien : $link\n\n"
+        "Le code et le lien sont valables $valid_minutes minutes. "
+        "Si vous ne les avez pas demandés, ignorez cet e-mail.\n",
     ),
 }
 
@@ -109,9 +128,14 @@ class _TemplateMail:
     """The default mail function: fills the templates of the settings or the built-in ones."""
 
     def __init__(self, settings: LoginTokenSettings, language: Language) -> None:
-        subject, text = _BUILT_IN[language]
-        self._subject = _template("mail_subject", settings.mail_subject or subject)
-        self._text = _template("mail_text", settings.mail_text or text)
+        self._language = language
+        self._templates = {
+            built_in: (
+                _template("mail_subject", settings.mail_subject or subject),
+                _template("mail_text", settings.mail_text or text),
+            )
+            for built_in, (subject, text) in _BUILT_IN.items()
+        }
         self._html = _template("mail_html", settings.mail_html) if settings.mail_html else None
         self._valid_minutes = str(settings.token_ttl // 60)
 
@@ -123,9 +147,11 @@ class _TemplateMail:
             "valid_minutes": self._valid_minutes,
             "expires_at": message.expires_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         }
+        language = (message.locale or "").replace("_", "-").split("-")[0].lower()
+        subject, text = self._templates.get(language) or self._templates[self._language]
         return LoginTokenMail(
-            subject=self._subject.substitute(values),
-            text=self._text.substitute(values),
+            subject=subject.substitute(values),
+            text=text.substitute(values),
             html=self._html.substitute(_escaped(values)) if self._html else None,
         )
 
@@ -148,7 +174,8 @@ class SMTPLoginTokenSender:
             and the validity; defaults to ``LoginTokenSettings.read()``. Not
             read if ``compose`` is given.
         compose: Builds the mail per message; defaults to the templates.
-        language: Language of the built-in templates, ``"en"`` or ``"de"``.
+        language: Language of the built-in templates for messages without a
+            built-in ``locale``: ``"en"``, ``"de"``, ``"it"`` or ``"fr"``.
 
     Raises:
         ValueError: If ``language`` is unknown or a template has an unknown

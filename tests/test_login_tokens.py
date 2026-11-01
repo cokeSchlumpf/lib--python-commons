@@ -85,9 +85,7 @@ def sender():
 
 @pytest.fixture
 def service(users, store, sender, clock):
-    return LoginTokenService(
-        users, store, secret_key=SECRET, sender=sender, settings=LoginTokenSettings(), clock=clock
-    )
+    return LoginTokenService(users, store, secret_key=SECRET, sender=sender, settings=LoginTokenSettings(), clock=clock)
 
 
 def _link(token: str) -> str:
@@ -99,6 +97,16 @@ def _token_from(link: str) -> str:
 
 
 class TestRequestLogin:
+    def test_passes_the_locale_to_the_message(self, service, sender):
+        service.request_login("jane@example.com", link_for=_link, locale="fr")
+
+        assert sender.last.locale == "fr"
+
+    def test_message_without_locale_by_default(self, service, sender):
+        service.request_login("jane@example.com", link_for=_link)
+
+        assert sender.last.locale is None
+
     def test_sends_link_and_code_to_registered_user(self, service, sender):
         request = service.request_login("jane@example.com", link_for=_link)
 
@@ -149,7 +157,12 @@ class TestSecretKey:
     def test_service_with_another_key_cannot_redeem(self, service, users, store, sender, clock):
         request = service.request_login("jane@example.com", link_for=_link)
         other = LoginTokenService(
-            users, store, secret_key="another-secret-key-987654", sender=sender, settings=LoginTokenSettings(), clock=clock
+            users,
+            store,
+            secret_key="another-secret-key-987654",
+            sender=sender,
+            settings=LoginTokenSettings(),
+            clock=clock,
         )
 
         assert other.redeem_link(_token_from(sender.last.link)).status is RedeemStatus.INVALID

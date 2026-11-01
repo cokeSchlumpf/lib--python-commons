@@ -39,8 +39,10 @@ class TestCreateFilesLocal:
         assert isinstance(result, LocalFiles)
         assert result._root == tmp_path / "custom"
 
+
 from commons.storage import SQLFiles
 from unittest.mock import MagicMock, patch
+
 
 class TestCreateFilesSql:
     def test_sql_mode_returns_sql_files(self):
@@ -58,6 +60,7 @@ class TestCreateFilesSql:
 
         assert isinstance(result, SQLFiles)
         fake_create_engine.assert_called_once()
+
 
 import pytest
 
@@ -95,4 +98,3 @@ class TestCreateFilesAzure:
         # The settings passed to _build_container_client must be the one from StorageSettings.
         passed = fake_build.call_args.args[0]
         assert passed.container == "files"
-
