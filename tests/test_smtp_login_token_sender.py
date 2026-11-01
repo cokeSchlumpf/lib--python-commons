@@ -90,9 +90,11 @@ def smtp(**overrides: Any) -> SMTPSettings:
     return SMTPSettings(**(values | overrides))
 
 
-def message(display_name: str = "Jane Doe") -> LoginTokenMessage:
+def message(display_name: str = "Jane Doe", locale: str | None = None) -> LoginTokenMessage:
     user = RegisteredUser.create("jane", None, display_name, email="jane@example.com")
-    return LoginTokenMessage(user=user, email="jane@example.com", link=LINK, code="123456", expires_at=EXPIRES)
+    return LoginTokenMessage(
+        user=user, email="jane@example.com", link=LINK, code="123456", expires_at=EXPIRES, locale=locale
+    )
 
 
 def send(sender: SMTPLoginTokenSender, msg: LoginTokenMessage | None = None) -> FakeServer:
@@ -192,8 +194,8 @@ class TestCreation:
             SMTPLoginTokenSender()
 
     def test_rejects_an_unknown_language(self):
-        with pytest.raises(ValueError, match="fr"):
-            SMTPLoginTokenSender(smtp(), LoginTokenSettings(), language="fr")  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="es"):
+            SMTPLoginTokenSender(smtp(), LoginTokenSettings(), language="es")  # type: ignore[arg-type]
 
     @pytest.mark.parametrize(
         ("setting", "template", "match"),
@@ -232,6 +234,44 @@ class TestMail:
         text = parts(sent)["text/plain"]
         assert text.startswith("Hallo Jane Doe,")
         assert "10 Minuten gültig" in text
+
+    @pytest.mark.parametrize(
+        ("language", "subject", "greeting"),
+        [
+            ("en", "Your sign-in code: 123456", "Hello Jane Doe,"),
+            ("de", "Ihr Anmeldecode: 123456", "Hallo Jane Doe,"),
+            ("it", "Il tuo codice di accesso: 123456", "Ciao Jane Doe,"),
+            ("fr", "Votre code de connexion : 123456", "Bonjour Jane Doe,"),
+        ],
+    )
+    def test_built_in_mail_per_language(self, language, subject, greeting):
+        server = send(SMTPLoginTokenSender(smtp(), LoginTokenSettings(), language=language))
+
+        assert server.sent is not None and server.sent["Subject"] == subject
+        text = parts(server.sent)["text/plain"]
+        assert text.startswith(greeting) and "123456" in text and LINK in text and "15" in text
+
+    @pytest.mark.parametrize(
+        ("locale", "subject"),
+        [
+            ("it", "Il tuo codice di accesso: 123456"),
+            ("de-CH", "Ihr Anmeldecode: 123456"),
+            ("fr_FR", "Votre code de connexion : 123456"),
+            ("es", "Your sign-in code: 123456"),
+            (None, "Your sign-in code: 123456"),
+        ],
+    )
+    def test_mail_in_the_language_of_the_message_else_of_the_sender(self, locale, subject):
+        server = send(SMTPLoginTokenSender(smtp(), LoginTokenSettings()), message(locale=locale))
+
+        assert server.sent is not None and server.sent["Subject"] == subject
+
+    def test_templates_from_settings_apply_to_every_language(self):
+        sender = SMTPLoginTokenSender(smtp(), LoginTokenSettings(mail_subject="Code $code"))
+
+        for locale in ("en", "de", "it", "fr"):
+            server = send(sender, message(locale=locale))
+            assert server.sent is not None and server.sent["Subject"] == "Code 123456"
 
     def test_name_falls_back_to_the_username(self):
         server = send(SMTPLoginTokenSender(smtp(), LoginTokenSettings()), message(display_name=""))

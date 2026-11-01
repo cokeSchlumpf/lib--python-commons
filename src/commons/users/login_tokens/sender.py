@@ -28,6 +28,8 @@ class LoginTokenMessage:
         code: Code the user can type in instead, in the browser that
             requested the login.
         expires_at: When the link and the code stop working (UTC).
+        locale: The language to write the message in (e.g. ``"de"``), as the
+            caller resolved it for the user; ``None`` lets the sender choose.
     """
 
     user: RegisteredUser
@@ -35,6 +37,7 @@ class LoginTokenMessage:
     link: str
     code: str
     expires_at: datetime
+    locale: str | None = None
 
 
 class SendLoginTokenPort(Protocol):

@@ -659,6 +659,10 @@ class RegisteredUser(SQLModel, table=True):
         firstname: First name (optional).
         lastname: Last name (optional).
         email: Email address (optional).
+        locale: The language the user chose (a language tag such as ``"de"`` or
+            ``"de-CH"``), or ``None`` if they never chose one. pyhx uses it to pick
+            the language of pages and login mails; it can be changed and saved with
+            ``upsert_user``.
 
     Example::
 
@@ -730,6 +734,9 @@ class RegisteredUser(SQLModel, table=True):
     email_: str | None = Field(
         default=None, validation_alias="email", serialization_alias="email", sa_column=Column("email", String(128))
     )
+    locale_: str | None = Field(
+        default=None, validation_alias="locale", serialization_alias="locale", sa_column=Column("locale", String(35))
+    )
 
     @property
     def id(self) -> str:
@@ -758,6 +765,14 @@ class RegisteredUser(SQLModel, table=True):
     @property
     def email(self) -> str | None:
         return self.email_
+
+    @property
+    def locale(self) -> str | None:
+        return self.locale_
+
+    @locale.setter
+    def locale(self, value: str | None) -> None:
+        self.locale_ = value
 
     def name(self, type: UserNameType = "casual") -> str:
         """
@@ -795,6 +810,7 @@ class RegisteredUser(SQLModel, table=True):
         firstname: str | None = None,
         lastname: str | None = None,
         email: str | None = None,
+        locale: str | None = None,
     ) -> "RegisteredUser":
         """
         Create a RegisteredUser with the given attributes.
@@ -809,6 +825,7 @@ class RegisteredUser(SQLModel, table=True):
             firstname: First name (optional).
             lastname: Last name (optional).
             email: Email address (optional).
+            locale: The language the user chose, e.g. ``"de"`` (optional).
 
         Returns:
             A new RegisteredUser instance.
@@ -831,4 +848,5 @@ class RegisteredUser(SQLModel, table=True):
             firstname_=firstname,
             lastname_=lastname,
             email_=email,
+            locale_=locale,
         )

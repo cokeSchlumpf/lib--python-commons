@@ -99,6 +99,16 @@ def _token_from(link: str) -> str:
 
 
 class TestRequestLogin:
+    def test_passes_the_locale_to_the_message(self, service, sender):
+        service.request_login("jane@example.com", link_for=_link, locale="fr")
+
+        assert sender.last.locale == "fr"
+
+    def test_message_without_locale_by_default(self, service, sender):
+        service.request_login("jane@example.com", link_for=_link)
+
+        assert sender.last.locale is None
+
     def test_sends_link_and_code_to_registered_user(self, service, sender):
         request = service.request_login("jane@example.com", link_for=_link)
 

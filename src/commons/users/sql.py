@@ -9,7 +9,7 @@ database using SQLAlchemy and SQLModel.
 import logging
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, Engine, delete, func, or_, select
+from sqlalchemy import CursorResult, Dialect, Engine, String, delete, func, inspect, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, selectinload, sessionmaker
 from sqlalchemy.sql.elements import ColumnElement
@@ -42,8 +42,10 @@ class SQLUsersRepository(UsersRepository):
     to a SQL database. It automatically creates the required tables on
     initialization if they don't exist.
 
-    Existing tables are not migrated: a database created before commons 1.2 (without
-    ``roles.is_default_role`` and the unique role assignments) must be recreated.
+    Existing tables are migrated on initialization by ordered, idempotent steps: since
+    commons 1.4, a ``registered_users`` table without the column ``locale`` gets it
+    (``NULL`` for existing users). A database created before commons 1.2 (without
+    ``roles.is_default_role`` and the unique role assignments) must still be recreated.
 
     Supported databases include SQLite, PostgreSQL, MySQL, and any other
     database supported by SQLAlchemy.
@@ -107,6 +109,7 @@ class SQLUsersRepository(UsersRepository):
         self._create_session = sessionmaker(bind=self._engine)
 
         SQLModel.metadata.create_all(self._engine, checkfirst=True)
+        self._migrate()
 
         for role in self.default_roles:
             role.is_default_role = True
@@ -310,6 +313,19 @@ class SQLUsersRepository(UsersRepository):
             session.expunge(merged_user)
             return merged_user
 
+    def _migrate(self) -> None:
+        """Bring tables created by earlier versions up to date; each step is idempotent."""
+        self._add_users_locale()
+
+    def _add_users_locale(self) -> None:
+        """Add ``registered_users.locale`` (commons 1.4) to a table that lacks it."""
+        columns = {column["name"] for column in inspect(self._engine).get_columns("registered_users")}
+        if "locale" in columns:
+            return
+        with self._engine.begin() as connection:
+            connection.execute(text(_add_users_locale_statement(self._engine.dialect)))
+        LOG.info("Added the column `locale` to `registered_users`.")
+
     def _reject_default_role(self, role: Role | str) -> None:
         name = role if isinstance(role, str) else role.name
         if (isinstance(role, Role) and role.is_default_role) or any(r.name == name for r in self.default_roles):
@@ -359,6 +375,12 @@ class SQLUsersRepository(UsersRepository):
             if result:
                 session.expunge(result)
             return result
+
+
+def _add_users_locale_statement(dialect: Dialect) -> str:
+    """The statement adding ``registered_users.locale``, for the given database."""
+    # `ADD` without `COLUMN`: valid in SQLite (optional keyword) and T-SQL (keyword not allowed).
+    return f"ALTER TABLE registered_users ADD locale {String(35).compile(dialect=dialect)} NULL"
 
 
 def _in_subtree(column: Mapped[str], scope: str) -> ColumnElement[bool]:
