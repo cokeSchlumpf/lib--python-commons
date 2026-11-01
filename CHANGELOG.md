@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.0.0...v1.1.0) (2026-11-01)
+
+
+### Features
+
+* Generate time-ordered UUIDv7 ids ([#20](https://github.com/cokeSchlumpf/lib--python-commons/issues/20)) ([91f7c79](https://github.com/cokeSchlumpf/lib--python-commons/commit/91f7c79bb9bda379583a4e8d84f46b0be5bb3c60))
+
 ## [1.0.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v0.2.1...v1.0.0) (2026-10-31)
 
 
