@@ -6,7 +6,7 @@ Every String column in this package picks a bound from here; genuinely long free
 (e.g. description bodies) uses an explicit ``Text`` type instead of a cap.
 """
 
-# uuid-string surrogate keys (our ids are 36-char uuid4 strings)
+# uuid-string surrogate keys (36-char UUID strings; new ones are UUIDv7, see `commons.id_operators.new_id`)
 ID_LENGTH = 36
 # short business codes (e.g. a manual or country code)
 CODE_LENGTH = 64

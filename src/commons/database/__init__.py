@@ -7,7 +7,7 @@ Reusable persistence primitives that sit *below* any one app's ORM models:
   — pick a bound so String columns stay indexable on SQL Server.
 - **Column types** (:class:`EnumString`, :class:`PydanticJSON`, :class:`UTCDateTime`)
   — ``TypeDecorator``s handed to ``Field(sa_type=...)``.
-- **Table mixins** (:class:`EntityMixin`, :class:`HistoryMixin`) — a uuid-PK operational
+- **Table mixins** (:class:`EntityMixin`, :class:`HistoryMixin`) — a UUIDv7-PK operational
   entity base and its temporal history-table companion.
 - **Unit-of-work ports** (:class:`UnitOfWork`, :class:`UnitOfWorkFactory`) — abstract
   transactional-scope contracts, generic over an app-defined repository bundle ``T``.

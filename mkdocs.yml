@@ -71,6 +71,7 @@ nav:
           - Collection operators: api/collection-operators.md
           - Date & time operators: api/datetime-operators.md
           - Dict operators: api/dict-operators.md
+          - ID operators: api/id-operators.md
           - String operators: api/string-operators.md
           - URL operators: api/url-operators.md
           - Path operators: api/path-operators.md
