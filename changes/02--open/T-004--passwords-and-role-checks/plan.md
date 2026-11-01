@@ -9,6 +9,8 @@
 - **F5** SQLite's `LIKE` ignores ASCII case; for `list_assignments()` and `remove_assignments()` that doesn't matter, as only normalized, lowercase paths are stored (R9).
 - **F6** `tests/test_login_tokens.py` has fixtures for users, store, sender and clock; the email sign-in test of R4 reuses them.
 - **F7** `RegisteredUser.create()` is called in commons by `init_from_settings()`, `update_password()`, the module docstring and tests; no caller outside commons reads `password_hash`, so making it optional (R4) only affects commons.
+- **F8** (step 2) `RoleAssignmentConfig` lives in `commons.settings`, which `commons.users` imports; its validator imports `_normalize_path` inside the function, as a module-level import would be circular.
+- **F9** (step 4) `upsert_role()` failed on `main` already for a role that mixes stored and new permissions (`UNIQUE constraint failed: permissions.name`): adding the new permission cascaded to the role, and the merge inserted its stored permissions again. Default roles put permissions into the database first, so the tests hit it; `upsert_role()` now builds the role in the session like the default role sync, without merging the given objects.
 
 Deviations from the spec:
 

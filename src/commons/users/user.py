@@ -20,7 +20,7 @@ Classes:
 import re
 from typing import Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import Column, ForeignKey, PrimaryKeyConstraint, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, PrimaryKeyConstraint, String, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel  # type: ignore
 
 from commons.id_operators import new_id
@@ -482,6 +482,11 @@ class Role(SQLModel, table=True):
     Attributes:
         name: Unique role name (e.g., ``"admin"``, ``"editor"``, ``"viewer"``).
         permissions: List of permissions granted by this role.
+        is_default_role: Whether the role is a default role, defined in code
+            (``default_roles`` of the repository) rather than created by the app.
+            Default roles are synced into the database when the repository is
+            created and can't be changed or deleted at runtime, so apps should
+            show them as not editable.
 
     Example::
 
@@ -503,6 +508,7 @@ class Role(SQLModel, table=True):
     __tablename__ = "roles"  # type: ignore
 
     name: str = Field(sa_column=Column(String(64), primary_key=True))
+    is_default_role: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, default=False))
     permissions: list[Permission] = Relationship(
         back_populates="roles", link_model=RolePermission, sa_relationship_kwargs={"lazy": "selectin"}
     )

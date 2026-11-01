@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from sqlalchemy import create_engine, event
 
@@ -249,3 +251,137 @@ class TestByScope:
         with Session(engine) as session:
             names = set(session.execute(select(Scope.name)).scalars())  # type: ignore[call-overload]
         assert names == {"/app", f"/app/tenants/{TENANT_B}", f"/app/tenants/{TENANT_A}x"}
+
+
+class TestDefaultRoles:
+    def _repo(self, engine, *roles: Role) -> SQLUsersRepository:
+        return SQLUsersRepository(engine, default_roles=list(roles))
+
+    def test_default_role_is_stored_and_assignable_with_foreign_keys(self, engine):
+        repo = self._repo(engine, Role.create("reader", ["/read"]))
+        user = _user(repo, "jane")
+
+        repo.add_assignment(user, "/app", "reader")
+
+        assert repo.has_permission(user, "/app/x", "/read")
+        assert [r.name for r in repo.list_roles()] == ["reader"]
+
+    def test_permissions_follow_the_code_on_the_next_start(self, engine):
+        self._repo(engine, Role.create("editor", ["/read", "/write"]))
+
+        repo = self._repo(engine, Role.create("editor", ["/read"]))
+
+        assert [p.name for p in repo._find_role_by_name("editor").permissions] == ["/read"]  # type: ignore[union-attr]
+
+    def test_removed_default_role_is_deleted_with_its_assignments(self, engine, caplog):
+        caplog.set_level(logging.INFO, logger="commons.users.sql")
+        repo = self._repo(engine, Role.create("reader", ["/read"]), Role.create("writer", ["/write"]))
+        repo.upsert_role(Role.create("app-role", ["/read"]))
+        user = _user(repo, "jane")
+        repo.add_assignment(user, "/app", "writer")
+        repo.add_assignment(user, "/app", "app-role")
+
+        repo = self._repo(engine, Role.create("reader", ["/read"]))
+
+        assert sorted(r.name for r in repo.list_roles()) == ["app-role", "reader"]
+        assert [a.role_name for a in repo.get_role_assignments(user)] == ["app-role"]
+        assert not repo.has_permission(user, "/app", "/write")
+        assert "Deleted default role `writer`" in caplog.text and "1 assignment(s)" in caplog.text
+
+    def test_all_default_roles_removed_from_the_code(self, engine):
+        self._repo(engine, Role.create("reader", ["/read"]))
+
+        repo = self._repo(engine)
+
+        assert repo.list_roles() == []
+
+    def test_code_takes_over_an_app_role_of_the_same_name(self, engine):
+        repo = self._repo(engine)
+        repo.upsert_role(Role.create("editor", ["/read", "/write", "/delete"]))
+        user = _user(repo, "jane")
+        repo.add_assignment(user, "/app", "editor")
+
+        repo = self._repo(engine, Role.create("editor", ["/read"]))
+
+        stored = repo._find_role_by_name("editor")
+        assert stored is not None and stored.is_default_role
+        assert [p.name for p in stored.permissions] == ["/read"]
+        assert [a.role_name for a in repo.get_role_assignments(user)] == ["editor"]
+        assert not repo.has_permission(user, "/app", "/delete")
+
+    def test_tells_default_roles_apart_from_app_roles(self, engine):
+        repo = self._repo(engine, Role.create("reader", ["/read"]))
+        repo.upsert_role(Role.create("app-role", ["/read"]))
+        user = _user(repo, "jane")
+        repo.add_assignment(user, "/app", "reader")
+
+        assert {r.name: r.is_default_role for r in repo.list_roles()} == {"reader": True, "app-role": False}
+        assert repo.get_role_by_name("reader").is_default_role
+        assert repo._find_role_by_name("reader").is_default_role  # type: ignore[union-attr]
+        assert not repo.get_role_by_name("app-role").is_default_role
+        assert repo.get_role_assignments(user)[0].role.is_default_role
+
+    def test_default_roles_cannot_be_changed_at_runtime(self, engine):
+        repo = self._repo(engine, Role.create("reader", ["/read"]))
+
+        with pytest.raises(ValueError, match="default role"):
+            repo.upsert_role(Role.create("reader", ["/read", "/write"]))
+        with pytest.raises(ValueError, match="default role"):
+            repo.delete_role("reader")
+        with pytest.raises(ValueError, match="default role"):
+            repo.delete_role(repo.get_role_by_name("reader"))
+        with pytest.raises(ValueError, match="default role"):
+            repo.upsert_role(Role(name="sneaky", is_default_role=True))
+
+        assert [p.name for p in repo.get_role_by_name("reader").permissions] == ["/read"]
+
+    def test_app_roles_can_still_be_changed(self, engine):
+        repo = self._repo(engine, Role.create("reader", ["/read"]))
+        repo.upsert_role(Role.create("app-role", ["/read"]))
+
+        repo.upsert_role(Role.create("app-role", ["/read", "/write"]))
+        assert len(repo.get_role_by_name("app-role").permissions) == 2
+
+        repo.delete_role("app-role")
+        assert [r.name for r in repo.list_roles()] == ["reader"]
+
+    def test_sync_runs_again_after_a_concurrent_insert(self, engine, monkeypatch):
+        from sqlalchemy.exc import IntegrityError
+
+        calls = []
+        original = SQLUsersRepository._sync_default_roles
+
+        def flaky(self):
+            calls.append(1)
+            if len(calls) == 1:
+                raise IntegrityError("INSERT", {}, Exception("another worker was faster"))
+            original(self)
+
+        monkeypatch.setattr(SQLUsersRepository, "_sync_default_roles", flaky)
+
+        repo = self._repo(engine, Role.create("reader", ["/read"]))
+
+        assert len(calls) == 2
+        assert [r.name for r in repo.list_roles()] == ["reader"]
+
+    def test_settings_users_can_get_default_roles(self, engine):
+        from commons.settings import StandardUserSettings
+
+        repo = self._repo(engine, Role.create("reader", ["/read"]))
+        repo.init_from_settings(
+            StandardUserSettings.model_validate(
+                {
+                    "users": [
+                        {
+                            "username": "jane",
+                            "firstname": "Jane",
+                            "lastname": "Doe",
+                            "email": "jane@example.com",
+                            "roles": [{"role": "reader", "scope": "/App/"}],
+                        }
+                    ]
+                }
+            )
+        )
+
+        assert repo.has_permission(repo.get_user_by_username("jane"), "/app", "/read")
