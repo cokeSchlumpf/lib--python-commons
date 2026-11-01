@@ -158,3 +158,20 @@ None.
 - Listing users (`list_users()`), other user types, the login token flow, an async or transactional API.
 - Changes in the apps, e.g. app--casesight dropping its random password hash, or pyhx's login form: they follow in their own changes.
 - Encrypting other settings and a Key Vault integration (T-003).
+
+## Outcome
+
+Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
+
+- **D1** The log calls use the module loggers `commons.users.repository` and `commons.users.sql`, following the convention of commons (`LOG = logging.getLogger(__name__)`), instead of one logger `commons.users`.
+- **F1** The port of `f03f548` had a test rejecting users with neither `password` nor `password_hash`; it was replaced by a test that such a user has no password (R1). Otherwise the port is unchanged; the deviations from `f03f548` are R1 (neither), R4 (no password) and R5 (empty passwords), and two docstrings that link with mkdocstrings cross-references instead of Sphinx roles, which this repository's docs render as plain text (README, "Writing docstrings").
+- **F2** `RoleAssignmentConfig` lives in `commons.settings`, which `commons.users` imports; its validator imports `_normalize_path` inside the function, as a module-level import would be circular.
+- **F3** `upsert_role()` failed on `main` already for a role that mixes stored and new permissions (`UNIQUE constraint failed: permissions.name`): adding the new permission cascaded to the role, and the merge inserted its stored permissions again. It now builds the role in the session like the default role sync, without merging the given objects.
+- **F4** Default roles are synced in `SQLUsersRepository.__init__`, before an app calls `init_from_settings()`, so users in the settings can be assigned default roles.
+
+Rollout: PR #25 into `main`; release-please releases it as 1.2.0, which apps on `versions/1` get with their next dependency update. Local databases created before must be deleted (no migration); UAT keeps no data (no app deploys with the Azure SQL database).
+
+Open after this change:
+
+- app--casesight: create email-only users without a password instead of the hash of a random secret, and introduce its roles (global admin on `/app`, tenant admin on `/app/tenants/<id>`) with the delegation rule in its domain. Owner: Michael Wellner.
+- app--beleglotse and app--cross-border-rules: enabling their commented-out permission checks, which now work as written. Owner: the developer of each app.
