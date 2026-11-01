@@ -60,8 +60,9 @@ class AzureFile(File):
         return self._size
 
     @property
-    def last_modified(self) -> datetime | None:
+    def last_modified(self) -> datetime:
         self._fetch_properties()
+        assert self._last_modified is not None
         return self._last_modified
 
     def open(self) -> BytesIO:

@@ -49,7 +49,9 @@ class SQLFile(File):
         return len(self._data)
 
     @property
-    def last_modified(self) -> datetime | None:
+    def last_modified(self) -> datetime:
+        if self._last_modified is None:
+            return super().last_modified  # created without it: raises like any File that doesn't know it
         return self._last_modified
 
     def open(self) -> BytesIO:

@@ -14,10 +14,10 @@
 
 ### File metadata
 
-- **R8** Every `File` has `size` (bytes, `int`) and `last_modified` (`datetime` with time zone UTC, or `None` if the backend doesn't know it).
-- **R9** For files returned by `find`, `get`, `list` and `list_directory` of the four backends, both are known (`last_modified` isn't `None`) and reading them doesn't download or read the file's bytes. (`SQLFiles` loads the bytes with every query today; see concern 2.)
+- **R8** Every `File` has `size` (bytes, `int`) and `last_modified` (`datetime` with time zone UTC, never `None`).
+- **R9** For files returned by `find`, `get`, `list` and `list_directory` of the four backends, both are known and reading them doesn't download or read the file's bytes. (`SQLFiles` loads the bytes with every query today; see concern 2.)
 - **R10** `last_modified` changes when a file is overwritten with `put`.
-- **R11** A subclass of `File` outside commons that only implements `key` and `open` still works: its `size` is the length of its content, its `last_modified` is `None`.
+- **R11** A subclass of `File` outside commons that only implements `key` and `open` still works: its `size` is the length of its content; reading its `last_modified` raises `NotImplementedError`.
 
 ### Compatibility
 
@@ -47,7 +47,7 @@ class DirectoryListing:
 @property
 def size(self) -> int:                     # default: len(self.open().getvalue())
 @property
-def last_modified(self) -> datetime | None:  # default: None
+def last_modified(self) -> datetime:         # default: raises NotImplementedError
 ```
 
 `Files` gets a concrete `list_directory(path="/")`. Its default implementation is built on `self.list(path)`: for each file key below the path, the first segment after the path is either a file (no further `/`) or a directory. That gives every subclass a correct result (R7) and is what `SQLFiles` uses. The other backends override it:
@@ -99,6 +99,7 @@ None. The developer asked for spec, plan and implementation in one go and review
 
 - Creating, renaming or deleting directories explicitly, and empty directories.
 - Paging of listings.
+- The creation time (`added`): decided in the review of the pull request. Azure (`creation_time`) and SQL could provide it, but the local file system has no creation time on Linux, so it would be `None` there; add it when an app needs it. Who added a file is domain metadata and stays in the app.
 - Further metadata: content type, ETag, custom blob metadata, and anything with domain meaning (title, owner, tags, permissions); those stay in the apps, linked by the key.
 - Faster `SQLFiles` queries (filtering in SQL, not loading the bytes).
 
@@ -108,6 +109,7 @@ Implemented as specified, with these deviations and findings (from the plan, rem
 
 - **D1** `LocalFiles.list_directory` returns an empty listing for a path that resolves outside the root (e.g. `/..`). The spec didn't name it; without it, `iterdir` would list folders outside the storage.
 - **F1** `SQLFiles` had no test against a real database before; the shared tests in `tests/test_storage_directories.py` now run it against SQLite, together with `LocalFiles`, `FilesWithPrefix`, `AzureFiles` (in-memory fake of the `ContainerClient`) and a minimal subclass of `Files` outside commons.
+- **D2** `File.last_modified` returns `datetime`, never `None`, and its default in `File` raises `NotImplementedError` (decided in the review of the pull request, R8, R11). Every backend of commons knows the value, no subclass of `File` outside commons exists in the local app and library repositories, and apps don't have to handle `None`. It stays concrete rather than abstract, so existing subclasses can still be created.
 - **F2** azure-storage-blob 12.28 returns a `BlobPrefix` whose `name` is the full prefix with a trailing `/` (e.g. `foo/bar/`); the directory key is that name with `/` in front and without the trailing `/`.
 
 Rollout: in lib--python-commons with the pull request `feat(storage): list directories and file metadata in Files`; released as 1.4.0 on `versions/1` once release-please's Release PR is merged.

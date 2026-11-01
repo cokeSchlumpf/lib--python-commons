@@ -21,7 +21,7 @@ class _PrefixedFile(File):
         return self._inner.size
 
     @property
-    def last_modified(self) -> datetime | None:
+    def last_modified(self) -> datetime:
         return self._inner.last_modified
 
     def open(self) -> BytesIO:

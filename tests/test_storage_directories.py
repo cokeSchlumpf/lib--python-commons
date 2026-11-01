@@ -225,8 +225,9 @@ class TestDefaultMetadata:
     def test_size_is_the_length_of_the_content(self) -> None:
         assert _MemoryFile("/a.txt", b"12345").size == 5
 
-    def test_last_modified_is_unknown(self) -> None:
-        assert _MemoryFile("/a.txt", b"12345").last_modified is None
+    def test_last_modified_raises_until_implemented(self) -> None:
+        with pytest.raises(NotImplementedError, match="_MemoryFile doesn't implement last_modified"):
+            _ = _MemoryFile("/a.txt", b"12345").last_modified
 
 
 class TestBackendMetadata:

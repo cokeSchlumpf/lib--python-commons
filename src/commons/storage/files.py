@@ -20,13 +20,14 @@ class File(ABC):
         return len(self.open().getvalue())
 
     @property
-    def last_modified(self) -> datetime | None:
+    def last_modified(self) -> datetime:
         """
-        When the file was last written (time zone UTC), or `None` if the backend doesn't know it.
+        When the file was last written, with time zone (UTC).
 
-        The backends of commons always know it; this default returns `None`.
+        Every backend of commons provides it. It isn't abstract, so subclasses outside commons that don't implement
+        it keep working until it is read; this default raises `NotImplementedError`.
         """
-        return None
+        raise NotImplementedError(f"{type(self).__name__} doesn't implement last_modified.")
 
     def get(self) -> BytesIO:
         return self.open()
