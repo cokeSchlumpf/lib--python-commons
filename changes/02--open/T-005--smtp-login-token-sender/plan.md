@@ -7,6 +7,7 @@
 - **F3** The tests clear the settings cache per test (`tests/conftest.py`), set settings through `monkeypatch.setenv("APP__…")` and patch `Path.home` to keep `~/.wellner/settings.toml` out; the new tests do the same.
 - **F4** A release moves `versions/1` to the new release (reusable workflow `python-release.yml` of `core--devops-workflows`); the Release PR is opened by release-please after the merge to `main`.
 - **F5** No Strato credentials are available to the agent; the manual delivery test of concern 1 can't be run here.
+- **F6** `read_settings_object` doesn't raise `KeyError` for a missing section, although `_get_nested` documents it: it returns `{}`. `SMTPSettings.read()` therefore relies on Pydantic, whose error names the missing `host` and `from_address` (R3). `_get_nested` is left as it is, as other settings rely on getting `{}`.
 
 Deviations from the spec:
 
@@ -20,7 +21,7 @@ Branch `feature/smtp-login-token-sender`, draft PR #32. The developer accepted t
 
 ### 1. SMTP settings
 
-- `SMTPSettings` (Pydantic, `SecretStr` password, `security` literal, port defaults, string check of F1) and `SMTPSettings.read()` with a clear error for missing `app.smtp`, `host` or `from_address`, in `commons/settings.py`; exported there. **R1, R2, R3, R4, D1**
+- `SMTPSettings` (Pydantic, `SecretStr` password, `security` literal, port defaults, string check of F1) and `SMTPSettings.read()`, whose validation error names missing `host` or `from_address` (also when `app.smtp` is missing, F6), in `commons/settings.py`; exported there. **R1, R2, R3, R4, D1**
 - Proof: `tests/test_smtp_settings.py`: read from TOML and from `APP__SMTP__*`, port defaults per mode, missing section and missing keys named in the error, unknown `security` rejected, numeric env password rejected and quoted one accepted, password not in `repr()`/`str()`.
 
 ### 2. Sender and mail

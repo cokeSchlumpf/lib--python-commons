@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Optional, Type, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationInfo, field_validator, model_validator
 
 from commons import dict_operators as dicts
 from commons import path_operators
@@ -476,6 +476,73 @@ class StandardUserSettings(BaseModel):
     def read() -> "StandardUserSettings":
         """Read users settings from configuration."""
         return read_settings_object("", StandardUserSettings)
+
+
+class SMTPSettings(BaseModel):
+    """Connection to an SMTP server for sending mails.
+
+    Read from ``app.smtp.*``; ``host`` and ``from_address`` are required. Not
+    specific to login mails: every mail sender of an app can use it (first
+    ``commons.users.login_tokens.SMTPLoginTokenSender``). The connection is
+    always encrypted: ``ssl`` uses TLS from the start (port 465),
+    ``starttls`` upgrades the connection (port 587).
+
+    TOML (e.g. a Strato mailbox)::
+
+        [app.smtp]  # settings.toml
+        host = "smtp.strato.de"
+        security = "ssl"  # port 465; default "starttls" (587)
+        username = "login@example.com"
+        from_address = "CaseSight <login@example.com>"  # must belong to the mailbox
+
+        [app.smtp]  # settings.secrets.toml
+        password = "..."
+
+    Env var overrides follow the standard pattern, e.g. ``APP__SMTP__PASSWORD``.
+    Env var values are evaluated as Python literals, so a password that looks
+    like a number must be quoted: ``APP__SMTP__PASSWORD='"123456"'``.
+
+    The password is a ``SecretStr``: it doesn't show in ``repr()`` or ``str()``;
+    read it with ``settings.password.get_secret_value()``.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    host: str = Field(min_length=1, description="Host name of the SMTP server.")
+    port: int | None = Field(default=None, description="Port; defaults to 465 for `ssl` and 587 for `starttls`.")
+    security: Literal["ssl", "starttls"] = Field(default="starttls", description="How the connection is encrypted.")
+    username: str = Field(default="", description="User to sign in with; no sign-in if empty.")
+    password: SecretStr = Field(default=SecretStr(""), description="Password of the user.")
+    from_address: str = Field(min_length=1, description="Sender address, e.g. `App <login@example.com>`.")
+    timeout: float = Field(default=30, gt=0, description="Seconds to wait for the server before failing.")
+
+    @field_validator("username", "password", "from_address", mode="before")
+    @classmethod
+    def _require_string(cls, value: Any, info: ValidationInfo) -> Any:
+        # Env var values are evaluated as literals (``APP__SMTP__PASSWORD=123456`` is an int);
+        # converting them back could change the value silently, so they must be quoted.
+        if not isinstance(value, (str, SecretStr)):
+            name = info.field_name or ""
+            raise ValueError(
+                f"`smtp.{name}` must be a string; quote it in env vars, e.g. APP__SMTP__{name.upper()}='\"...\"'."
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _default_port(self) -> "SMTPSettings":
+        if self.port is None:
+            self.port = 465 if self.security == "ssl" else 587
+        return self
+
+    @staticmethod
+    def read() -> "SMTPSettings":
+        """Read the SMTP settings from ``app.smtp``.
+
+        Raises:
+            pydantic.ValidationError: If ``app.smtp`` is missing, a required key (``host``,
+                ``from_address``) is missing or empty, or a value is invalid; the error names the keys.
+        """
+        return read_settings_object("smtp", SMTPSettings)
 
 
 @lru_cache
