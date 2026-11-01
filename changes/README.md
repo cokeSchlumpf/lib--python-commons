@@ -27,3 +27,5 @@ Most important first (reorder by moving lines); items not listed have the lowest
 
 <!-- One line per item: - [T-<n> <Title>](01--backlog/T-<n>--<slug>.md): <a few words>. -->
 
+- [T-006 Request context for the login mail](01--backlog/T-006--login-request-context.md): browser language from pyhx to the login mail.
+

@@ -12,7 +12,9 @@ Overview
   secrets). ``InMemoryLoginTokenStore`` for a single process,
   ``SQLLoginTokenStore`` for several processes or workers.
 - **SendLoginTokenPort**: How link and code reach the user. The default
-  ``LoggingLoginTokenSender`` writes them to the log (development only).
+  ``LoggingLoginTokenSender`` writes them to the log (development only);
+  ``SMTPLoginTokenSender`` sends them by email via the SMTP server of
+  ``app.smtp`` (see :mod:`commons.users.login_tokens.smtp`).
 - **LoginTokenSettings**: Validity, code length and the rate limit, read from
   ``app.login_tokens.*``.
 
@@ -47,13 +49,16 @@ from .model import (
 )
 from .sender import LoggingLoginTokenSender, LoginTokenMessage, SendLoginTokenPort
 from .service import LoginTokenService, LoginTokenSettings
+from .smtp import ComposeLoginTokenMail, LoginTokenMail, SMTPLoginTokenSender
 from .sql import SQLLoginTokenStore
 from .store import LoginTokenStore
 
 __all__ = [
+    "ComposeLoginTokenMail",
     "InMemoryLoginTokenStore",
     "LoggingLoginTokenSender",
     "LoginRequest",
+    "LoginTokenMail",
     "LoginTokenMessage",
     "LoginTokenRequest",
     "LoginTokenService",
@@ -62,6 +67,7 @@ __all__ = [
     "RedeemResult",
     "RedeemStatus",
     "RequestStatus",
+    "SMTPLoginTokenSender",
     "SQLLoginTokenStore",
     "SendLoginTokenPort",
 ]
