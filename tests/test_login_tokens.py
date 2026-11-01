@@ -85,9 +85,7 @@ def sender():
 
 @pytest.fixture
 def service(users, store, sender, clock):
-    return LoginTokenService(
-        users, store, secret_key=SECRET, sender=sender, settings=LoginTokenSettings(), clock=clock
-    )
+    return LoginTokenService(users, store, secret_key=SECRET, sender=sender, settings=LoginTokenSettings(), clock=clock)
 
 
 def _link(token: str) -> str:
@@ -159,7 +157,12 @@ class TestSecretKey:
     def test_service_with_another_key_cannot_redeem(self, service, users, store, sender, clock):
         request = service.request_login("jane@example.com", link_for=_link)
         other = LoginTokenService(
-            users, store, secret_key="another-secret-key-987654", sender=sender, settings=LoginTokenSettings(), clock=clock
+            users,
+            store,
+            secret_key="another-secret-key-987654",
+            sender=sender,
+            settings=LoginTokenSettings(),
+            clock=clock,
         )
 
         assert other.redeem_link(_token_from(sender.last.link)).status is RedeemStatus.INVALID

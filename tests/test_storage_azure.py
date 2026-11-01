@@ -33,6 +33,7 @@ class TestAzureFile:
 def container_client() -> MagicMock:
     return MagicMock()
 
+
 @pytest.fixture
 def azure_files(container_client: MagicMock) -> AzureFiles:
     return AzureFiles(container_client=container_client)
@@ -148,9 +149,7 @@ class TestAzureFilesDeleteRecursive:
         assert "foo" in delete_targets
         assert result == 3
 
-    def test_recursive_swallows_missing_exact_match(
-        self, azure_files: AzureFiles, container_client: MagicMock
-    ):
+    def test_recursive_swallows_missing_exact_match(self, azure_files: AzureFiles, container_client: MagicMock):
         b1 = MagicMock()
         b1.name = "foo/a.txt"
         container_client.list_blobs.return_value = [b1]
@@ -162,16 +161,13 @@ class TestAzureFilesDeleteRecursive:
 
         assert result == 1  # Only the swept blob counts.
 
-    def test_recursive_returns_zero_when_nothing_matches(
-        self, azure_files: AzureFiles, container_client: MagicMock
-    ):
+    def test_recursive_returns_zero_when_nothing_matches(self, azure_files: AzureFiles, container_client: MagicMock):
         container_client.list_blobs.return_value = []
         container_client.delete_blob.side_effect = ResourceNotFoundError("missing")
 
         result = azure_files.delete("/foo", recursive=True)
 
         assert result == 0
-
 
 
 class TestBuildContainerClient:
@@ -278,5 +274,3 @@ class TestStoragePackageExports:
 
         assert AzureFileExport is AzureFile
         assert AzureFilesExport is AzureFiles
-
-

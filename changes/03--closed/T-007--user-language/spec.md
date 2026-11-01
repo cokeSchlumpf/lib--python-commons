@@ -5,7 +5,7 @@
 ### User language
 
 - **R1** `RegisteredUser` has `locale: str | None` (a language tag such as `"de"` or `"de-CH"`, at most 35 characters), `None` by default; `RegisteredUser.create(…, locale=…)` accepts it and `upsert_user` stores it. (T-003 R17)
-- **R2** `SQLUsersRepository` adds the column `locale` to an existing `registered_users` table that lacks it when it is created, on SQLite and Azure SQL (mssql); existing rows keep their data and get `NULL`; running it again changes nothing. (T-003 R17)
+- **R2** ~~`SQLUsersRepository` adds the column `locale` to an existing `registered_users` table.~~ Dropped in review (see Outcome, D1): existing tables are not migrated; a database created before 1.4 is recreated, as for 1.2. (T-003 R17)
 
 ### Login mails per language
 
@@ -54,10 +54,12 @@ None.
 
 Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
 
+- **D1** No migration of existing users tables (R2 dropped in the developer's review): commons doesn't migrate schemas, and the apps' users are synced from settings, so a database from before 1.4 is recreated; the `SQLUsersRepository` docstring says so.
+
 - **F1** `UsersRepository.update_password` rebuilt the user without the new field and would have reset `locale` on every password change; it now keeps it (tested).
 - **F2** `RegisteredUser.locale` is a property with a setter (the other fields are read-only properties), so callers such as pyhx can change the language of a loaded user and save it with `upsert_user`.
-- **F3** The migration statement is built by `_add_users_locale_statement(dialect)` and tested for SQLite and mssql; the existing test that used `"fr"` as an unknown mail language now uses `"es"`.
+- **F3** The existing test that used `"fr"` as an unknown mail language now uses `"es"`.
 
 Rollout: PR #35, released as commons 1.4.0 on `versions/1` after the developer's review and merge.
 
-Open after this change: the first run of the migration on Azure SQL happens with the CaseSight release of T-003 in UAT (developer checks it); pyhx T-004 uses the user language and passes the mail language.
+Open after this change: apps updating to 1.4 recreate their database (CaseSight UAT with T-003); pyhx T-004 uses the user language and passes the mail language.

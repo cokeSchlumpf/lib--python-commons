@@ -89,12 +89,14 @@ class TestUnflatten:
         assert result == {"a": [{"name": "x"}]}
 
     def test_multiple_objects_in_list(self) -> None:
-        result = unflatten({
-            "foo[0].a": 42,
-            "foo[0].b": 67,
-            "foo[1].a": 43,
-            "foo[1].b": 68,
-        })
+        result = unflatten(
+            {
+                "foo[0].a": 42,
+                "foo[0].b": 67,
+                "foo[1].a": 43,
+                "foo[1].b": 68,
+            }
+        )
         assert result == {"foo": [{"a": 42, "b": 67}, {"a": 43, "b": 68}]}
 
     def test_bracket_keys_double_quotes(self) -> None:

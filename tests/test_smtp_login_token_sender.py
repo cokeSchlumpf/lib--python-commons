@@ -294,7 +294,7 @@ class TestMail:
         body = parts(sent)
         assert body["text/plain"].strip() == "123456 bis 2026-11-01 09:30 UTC, $5"
         assert body["text/html"].strip() == (
-            '<style>a { color: red }</style>'
+            "<style>a { color: red }</style>"
             '<a href="https://app.example.com/login/token?t=abc&amp;x=1">&lt;Jane &amp; Co&gt;</a> 123456'
         )
 
