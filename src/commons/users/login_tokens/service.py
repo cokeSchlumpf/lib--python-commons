@@ -38,6 +38,9 @@ class LoginTokenSettings:
         max_code_attempts = 5  # wrong codes before the request is invalidated
         max_requests_per_email = 3  # requests per address ...
         email_window = 900  # ... within this many seconds
+        mail_subject = "..."  # optional: the login mail of SMTPLoginTokenSender,
+        mail_text = "..."  # see commons.users.login_tokens.smtp
+        mail_html = "..."
 
     Env var overrides follow the standard pattern, e.g.
     ``APP__LOGIN_TOKENS__TOKEN_TTL``.
@@ -50,6 +53,9 @@ class LoginTokenSettings:
         max_code_attempts: int = 5,
         max_requests_per_email: int = 3,
         email_window: int = 15 * 60,
+        mail_subject: str | None = None,
+        mail_text: str | None = None,
+        mail_html: str | None = None,
         **_kwargs: Any,
     ) -> None:
         self.token_ttl = int(token_ttl)
@@ -57,6 +63,9 @@ class LoginTokenSettings:
         self.max_code_attempts = int(max_code_attempts)
         self.max_requests_per_email = int(max_requests_per_email)
         self.email_window = int(email_window)
+        self.mail_subject = mail_subject
+        self.mail_text = mail_text
+        self.mail_html = mail_html
 
     @staticmethod
     def read() -> "LoginTokenSettings":
