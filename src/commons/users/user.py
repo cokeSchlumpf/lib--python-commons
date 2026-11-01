@@ -24,6 +24,53 @@ from sqlalchemy import Column, ForeignKey, PrimaryKeyConstraint, String
 from sqlmodel import Field, Relationship, SQLModel  # type: ignore
 
 from commons.id_operators import new_id
+from commons.string_operators import remove_accents
+
+
+def _normalize_path(kind: str, value: str) -> str:
+    """
+    Normalize a scope or permission path to its one canonical spelling, or raise.
+
+    Empty segments (leading, trailing and double slashes) are dropped and a leading
+    ``/`` is added. In each segment, accents are removed, letters are lowercased, and
+    every run of characters other than ``a-z``, ``0-9`` and ``-`` becomes one ``-``,
+    without leading or trailing ``-``; dashes already in a segment are kept, so double
+    dashes stay. Examples: ``"/app/"`` and ``"app"`` become ``"/app"``, ``"/foo/Foo Bar"``
+    becomes ``"/foo/foo-bar"``, ``"/lib--python-commons"`` stays as it is.
+
+    Normalizing never changes which scope is meant, so these raise instead: a segment
+    ``.`` or ``..``, a segment that is empty after normalizing (e.g. ``"/!!!"``), and a
+    path without segments other than the literal ``"/"`` (e.g. ``""``, ``"//"``): only
+    ``"/"`` means the root.
+
+    Args:
+        kind: What the path is (``"scope"`` or ``"permission"``), for the error message.
+        value: The path to normalize.
+
+    Returns:
+        The normalized path.
+
+    Raises:
+        ValueError: If the path can't be normalized without changing its meaning.
+    """
+    if value == "/":
+        return "/"
+
+    segments = []
+    for raw in value.split("/"):
+        if raw == "":
+            continue  # leading, trailing or double slash
+        if raw in (".", ".."):
+            raise ValueError(f"Invalid {kind} `{value}`: the segments `.` and `..` are not allowed.")
+        segment = re.sub(r"[^a-z0-9-]+", "-", remove_accents(raw).lower()).strip("-")
+        if not segment:
+            raise ValueError(f"Invalid {kind} `{value}`: the segment `{raw}` is empty after normalizing.")
+        segments.append(segment)
+
+    if not segments:
+        raise ValueError(f"Invalid {kind} `{value}`: only `/` means the root.")
+
+    return "/" + "/".join(segments)
 
 
 UserNameType = Literal["technical", "casual", "formal", "full"]
@@ -418,12 +465,8 @@ class Permission(SQLModel, table=True):
     @field_validator("name")
     @classmethod
     def validate_permission_path(cls, v: str) -> str:
-        """Validate that the permission name is a valid path format."""
-        if not v.startswith("/"):
-            raise ValueError("Permission must start with '/'")
-        if not re.fullmatch(r"/([a-z0-9-]+/)*[a-z0-9-]+", v):
-            raise ValueError("Permission must be a valid path with lowercase letters, numbers, and dashes only")
-        return v
+        """Normalize the permission name (see ``_normalize_path``)."""
+        return _normalize_path("permission", v)
 
 
 class Role(SQLModel, table=True):
@@ -476,7 +519,8 @@ class Role(SQLModel, table=True):
         Returns:
             A new Role instance with Permission objects created for each path.
         """
-        return Role(name=name, permissions=[Permission(name=p) for p in permissions])
+        normalized = dict.fromkeys(_normalize_path("permission", p) for p in permissions)
+        return Role(name=name, permissions=[Permission(name=p) for p in normalized])
 
 
 class Scope(SQLModel, table=True):
@@ -519,12 +563,8 @@ class Scope(SQLModel, table=True):
     @field_validator("name")
     @classmethod
     def validate_permission_path(cls, v: str) -> str:
-        """Validate that the scope name is a valid path format."""
-        if not v.startswith("/"):
-            raise ValueError("Scope must start with '/'")
-        if not re.fullmatch(r"/([a-z0-9-]+/)*[a-z0-9-]+", v):
-            raise ValueError("Scope must be a valid path with lowercase letters, numbers, and dashes only")
-        return v
+        """Normalize the scope name (see ``_normalize_path``)."""
+        return _normalize_path("scope", v)
 
 
 class RoleAssignment(SQLModel, table=True):

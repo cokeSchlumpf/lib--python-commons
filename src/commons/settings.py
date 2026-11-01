@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Optional, Type, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from commons import dict_operators as dicts
 from commons import path_operators
@@ -391,6 +391,14 @@ class RoleAssignmentConfig(BaseModel):
 
     role: str = Field(description="The name of the role to assign.")
     scope: str = Field(description="The scope path where the role applies (e.g., '/projects/my-project').")
+
+    @field_validator("scope")
+    @classmethod
+    def _normalize_scope(cls, v: str) -> str:
+        # Imported here: commons.users imports commons.settings, so a module-level import would be circular.
+        from commons.users.user import _normalize_path
+
+        return _normalize_path("scope", v)
 
 
 class StandardUser(BaseModel):

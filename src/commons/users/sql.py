@@ -22,6 +22,7 @@ from commons.users.user import (
     Role,
     RoleAssignment,
     Scope,
+    _normalize_path,
 )
 
 
@@ -98,6 +99,7 @@ class SQLUsersRepository(UsersRepository):
         with self._create_session() as session:
             if isinstance(user, str):
                 user = self.get_user_by_username(user)
+            scope = _normalize_path("scope", scope)
 
             existing_scope = session.execute(
                 select(Scope).where(Scope.name == scope)  # type: ignore[arg-type]
@@ -210,6 +212,9 @@ class SQLUsersRepository(UsersRepository):
                 session.commit()
 
     def upsert_role(self, role: Role) -> Role:
+        for permission in role.permissions:
+            permission.name = _normalize_path("permission", permission.name)
+
         with self._create_session() as session:
             for permission in role.permissions:
                 existing_perm = session.execute(

@@ -1,12 +1,12 @@
 import abc
-from pathlib import PurePosixPath
 from typing import Callable
 
 import bcrypt  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from commons.settings import StandardUserSettings
 from commons.users.user import (
+    _normalize_path,
     AnonymousUser,
     AuthenticatedUser,
     RegisteredUser,
@@ -33,6 +33,11 @@ def _default_verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
+def _path_contains(allowed: str, to_check: str) -> bool:
+    """Whether ``to_check`` is ``allowed`` or below it, segment by segment; both are normalized paths."""
+    return allowed == "/" or to_check == allowed or to_check.startswith(allowed + "/")
+
+
 class DefaultRoleAssignment(BaseModel):
     """A default role assignment applied to users based on their authentication state."""
 
@@ -41,6 +46,11 @@ class DefaultRoleAssignment(BaseModel):
 
     role: str
     """The role name to assign."""
+
+    @field_validator("scope")
+    @classmethod
+    def _normalize_scope(cls, v: str) -> str:
+        return _normalize_path("scope", v)
 
 
 class UsersRepository(abc.ABC):
@@ -318,6 +328,9 @@ class UsersRepository(abc.ABC):
         Returns:
             True if the user has the permission, False otherwise.
         """
+        scope = _normalize_path("scope", scope)
+        permission = _normalize_path("permission", permission)
+
         if isinstance(user, AnonymousUser):
             return any(
                 self.role_has_permission(p.scope, p.role, scope, permission) for p in self.anonymous_default_permissions
@@ -417,6 +430,9 @@ class UsersRepository(abc.ABC):
         Returns:
             True if the user has the permission, False otherwise.
         """
+        scope = _normalize_path("scope", scope)
+        permission = _normalize_path("permission", permission)
+
         for default_permission in self.registered_default_permissions:
             role = self.get_role_by_name(default_permission.role)
             has_permission = self.role_has_permission(default_permission.scope, role, scope, permission)
@@ -454,6 +470,10 @@ class UsersRepository(abc.ABC):
         Returns:
             True if the role grants the permission in the scope, False otherwise.
         """
+        scope = _normalize_path("scope", scope)
+        scope_to_check = _normalize_path("scope", scope_to_check)
+        permission_to_check = _normalize_path("permission", permission_to_check)
+
         if not self._scope_contains_scope(scope, scope_to_check):
             return False
 
@@ -549,7 +569,7 @@ class UsersRepository(abc.ABC):
         Returns:
             True if permission_to_check is equal to or a sub-path of allowed_permission.
         """
-        return PurePosixPath(permission_to_check).is_relative_to(PurePosixPath(allowed_permission))
+        return _path_contains(allowed_permission, permission_to_check)
 
     def _scope_contains_scope(self, allowed_scope: str, scope_to_check: str) -> bool:
         """
@@ -564,4 +584,4 @@ class UsersRepository(abc.ABC):
         Returns:
             True if scope_to_check is equal to or a sub-path of allowed_scope.
         """
-        return PurePosixPath(scope_to_check).is_relative_to(PurePosixPath(allowed_scope))
+        return _path_contains(allowed_scope, scope_to_check)
