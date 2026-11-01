@@ -1,5 +1,7 @@
 # Changelog
 
+All notable changes to this library are documented here. The newest release is at the top.
+
 ## [1.1.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.0.0...v1.1.0) (2026-11-01)
 
 ### Highlights
@@ -48,7 +50,3 @@ This release adds a MkDocs-based documentation site (MkDocs Material + mkdocstri
 ### Documentation
 
 * Add MkDocs documentation page published to GitHub Pages — site built with MkDocs Material + mkdocstrings (API reference generated from existing docstrings, one page per module; includes type signatures, source links, search and a light/dark theme). Adds a `.github/workflows/docs.yml` workflow to build and deploy to GitHub Pages on pushes to `main` (and runnable manually), builds the docs with `--strict` in the existing Check workflow, adds Poe tasks (`poe docs`, `poe docs-build`) and gitignores the built `site/`, adds an empty `src/commons/datastructures/__init__.py` so mkdocstrings can resolve the package, and adds a docs link to the README. ([#3](https://github.com/cokeSchlumpf/lib--python-commons/issues/3)) ([1b886f3](https://github.com/cokeSchlumpf/lib--python-commons/commit/1b886f3901a4b12519a27da7175c94cb85fe6ae0))
-
-## Changelog
-
-All notable changes to this library are documented here. The newest release is at the top.
