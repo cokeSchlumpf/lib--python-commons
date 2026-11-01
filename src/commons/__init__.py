@@ -1,6 +1,7 @@
 from . import collection_operators
 from . import datetime_operators
 from . import dict_operators
+from . import id_operators
 from . import path_operators
 from . import settings
 from . import string_operators
@@ -10,6 +11,7 @@ __all__ = [
     "collection_operators",
     "datetime_operators",
     "dict_operators",
+    "id_operators",
     "path_operators",
     "settings",
     "string_operators",
