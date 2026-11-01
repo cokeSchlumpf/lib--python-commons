@@ -7,9 +7,20 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
+from azure.core.exceptions import ResourceNotFoundError
+from azure.storage.blob import BlobPrefix, BlobProperties
 from sqlalchemy import create_engine
 
-from commons.storage import Directory, DirectoryListing, File, Files, LocalFiles, SQLFiles
+from commons.storage import (
+    AzureFiles,
+    Directory,
+    DirectoryListing,
+    File,
+    Files,
+    FilesWithPrefix,
+    LocalFiles,
+    SQLFiles,
+)
 
 
 class _MemoryFile(File):
@@ -47,12 +58,80 @@ class _MemoryFiles(Files):
         return 1 if self._data.pop(key, None) is not None else 0
 
 
+class _FakeBlobClient:
+    def __init__(self, container: "_FakeContainerClient", name: str) -> None:
+        self._container = container
+        self._name = name
+
+    def upload_blob(self, data: bytes, overwrite: bool = False) -> None:
+        properties = BlobProperties()
+        properties.name = self._name
+        properties.size = len(data)
+        properties.last_modified = datetime.now(UTC)
+        self._container.blobs[self._name] = (properties, data)
+
+    def get_blob_properties(self) -> BlobProperties:
+        if self._name not in self._container.blobs:
+            raise ResourceNotFoundError("not found")
+        return self._container.blobs[self._name][0]
+
+    def download_blob(self) -> "_FakeDownload":
+        if self._name not in self._container.blobs:
+            raise ResourceNotFoundError("not found")
+        return _FakeDownload(self._container.blobs[self._name][1])
+
+
+class _FakeDownload:
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+
+    def readall(self) -> bytes:
+        return self._data
+
+
+class _FakeContainerClient:
+    """In-memory container with the documented semantics of `list_blobs` and `walk_blobs` (results in name order)."""
+
+    def __init__(self) -> None:
+        self.blobs: dict[str, tuple[BlobProperties, bytes]] = {}
+        self.calls: list[str] = []
+
+    def get_blob_client(self, name: str) -> _FakeBlobClient:
+        return _FakeBlobClient(self, name)
+
+    def list_blobs(self, name_starts_with: str | None = None) -> list[BlobProperties]:
+        self.calls.append("list_blobs")
+        prefix = name_starts_with or ""
+        return [p for name, (p, _) in sorted(self.blobs.items()) if name.startswith(prefix)]
+
+    def walk_blobs(self, name_starts_with: str | None = None, delimiter: str = "/") -> list[BlobProperties | BlobPrefix]:
+        self.calls.append("walk_blobs")
+        prefix = name_starts_with or ""
+        items: list[BlobProperties | BlobPrefix] = []
+        prefixes: set[str] = set()
+        for name, (properties, _) in sorted(self.blobs.items()):
+            if not name.startswith(prefix):
+                continue
+            rest = name[len(prefix) :]
+            if delimiter in rest:
+                prefixes.add(prefix + rest.split(delimiter, 1)[0] + delimiter)
+            else:
+                items.append(properties)
+        return [*items, *(BlobPrefix(prefix=p) for p in sorted(prefixes))]
+
+    def delete_blob(self, name: str) -> None:
+        if self.blobs.pop(name, None) is None:
+            raise ResourceNotFoundError("not found")
+
+
 FilesFactory = Callable[[Path], Files]
 
 # The backends of commons; each must know the metadata of its files.
 BACKENDS: dict[str, FilesFactory] = {
     "local": lambda tmp_path: LocalFiles(tmp_path / "files"),
     "sql": lambda tmp_path: SQLFiles(create_engine(f"sqlite:///{tmp_path / 'files.db'}")),
+    "azure": lambda tmp_path: AzureFiles(container_client=_FakeContainerClient()),  # type: ignore[arg-type]
+    "prefix": lambda tmp_path: FilesWithPrefix(LocalFiles(tmp_path / "files"), "/tenant"),
 }
 
 
@@ -215,3 +294,39 @@ class TestLocalFiles:
 
         assert _keys(files.list_directory("/..")) == ([], [])
         assert _keys(files.list_directory("/../root/..")) == ([], [])
+
+
+class TestAzureFiles:
+    def test_lists_one_level_with_one_walk_blobs_call(self) -> None:
+        container = _FakeContainerClient()
+        files = AzureFiles(container_client=container)  # type: ignore[arg-type]
+        _put(files, "/foo/a.txt", "/foo/bar/b.txt", "/foo/bar/baz/c.txt")
+        container.calls.clear()
+
+        assert _keys(files.list_directory("/foo")) == (["/foo/bar"], ["/foo/a.txt"])
+        assert container.calls == ["walk_blobs"]
+
+    def test_metadata_from_the_listing_needs_no_further_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        container = _FakeContainerClient()
+        files = AzureFiles(container_client=container)  # type: ignore[arg-type]
+        _put(files, "/x/a.txt")
+        (file,) = files.list_directory("/x").files
+
+        def fail(self: _FakeBlobClient) -> None:
+            raise AssertionError("no request expected")
+
+        monkeypatch.setattr(_FakeBlobClient, "get_blob_properties", fail)
+        monkeypatch.setattr(_FakeBlobClient, "download_blob", fail)
+        assert file.size == len(b"content of /x/a.txt")
+        assert file.last_modified is not None
+
+
+class TestFilesWithPrefix:
+    def test_keys_have_no_prefix_and_other_tenants_are_not_listed(self, tmp_path: Path) -> None:
+        inner = LocalFiles(tmp_path)
+        _put(inner, "/other/x/a.txt")
+        files = FilesWithPrefix(inner, "/tenant")
+        _put(files, "/x/a.txt", "/x/sub/b.txt")
+
+        assert _keys(files.list_directory("/")) == (["/x"], [])
+        assert _keys(files.list_directory("/x")) == (["/x/sub"], ["/x/a.txt"])

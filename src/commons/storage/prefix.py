@@ -1,7 +1,8 @@
 from commons import string_operators
+from datetime import datetime
 from io import BytesIO
 
-from .files import File, Files
+from .files import Directory, DirectoryListing, File, Files
 
 
 class _PrefixedFile(File):
@@ -14,6 +15,14 @@ class _PrefixedFile(File):
     @property
     def key(self) -> str:
         return self._inner.key.removeprefix(self._prefix)
+
+    @property
+    def size(self) -> int:
+        return self._inner.size
+
+    @property
+    def last_modified(self) -> datetime | None:
+        return self._inner.last_modified
 
     def open(self) -> BytesIO:
         return self._inner.open()
@@ -43,6 +52,13 @@ class FilesWithPrefix(Files):
     def list(self, path: str = "/") -> list[File]:
         results = self._inner.list(self._add_prefix(path))
         return [self._strip_prefix(f) for f in results]
+
+    def list_directory(self, path: str = "/") -> DirectoryListing:
+        listing = self._inner.list_directory(self._add_prefix(path))
+        return DirectoryListing(
+            directories=[Directory(d.key.removeprefix(self._prefix)) for d in listing.directories],
+            files=[self._strip_prefix(f) for f in listing.files],
+        )
 
     def _put(self, key: str, data: BytesIO) -> None:
         self._inner._put(self._add_prefix(key), data)
