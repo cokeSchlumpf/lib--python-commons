@@ -51,3 +51,18 @@ None.
 
 - Usernames, e-mail addresses, role, scope and permission names, the key of events, login tokens.
 - Migrating existing tables; changing the apps.
+
+## Outcome
+
+Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
+
+- **D1** Implemented in pull request #38, which started as the backlog item on the branch `docs/unicode-text-columns`; the branch keeps its name, the title of the pull request became `feat(database): …`.
+- **F1** `commons.database` is documented by its module docstring; the guidance on `VARCHAR` and `NVARCHAR` and the `ALTER TABLE` example are there.
+- **F2** `Unicode(n)` creates `VARCHAR(n)` on SQLite, so nothing changes there; the tests check the DDL of SQL Server by compiling it with the MSSQL dialect and the round trip on SQLite.
+
+Rollout: released with the next minor version of `versions/1` after the merge of pull request #38. Apps get `NVARCHAR` for these columns in new tables; existing tables on Azure SQL keep `VARCHAR` until the app converts them.
+
+Open after this change:
+
+- app--casesight replaces its own `UnicodeCode` / `UnicodeName` (`adapters/sql/cases_repository/_columns.py`) with the ones of `commons` once released. Owner: Michael Wellner.
+- Apps already on Azure SQL convert `registered_users` and their history tables (`ALTER TABLE`, see the docs). Owner: the owner of each app.
