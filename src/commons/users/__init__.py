@@ -19,7 +19,10 @@ The module defines three concrete user types, all implementing the ``User`` prot
 
 3. **RegisteredUser**: Represents users with local accounts stored in the database.
    Has credentials (username/password) and can have role assignments. This is a
-   SQLModel table class. Created via ``RegisteredUser.create()``.
+   SQLModel table class. Created via ``RegisteredUser.create()``. A registered user
+   may have no password (``password_hash`` is ``None``): they can't sign in with a
+   password, only by other means such as an email link or code
+   ([`commons.users.login_tokens`][commons.users.login_tokens]).
 
 Permission System
 -----------------
@@ -35,7 +38,39 @@ The RBAC system uses path-based scopes and permissions:
   paths where ``"/projects"`` contains ``"/projects/my-project"``.
 
 - **RoleAssignment**: Links a ``RegisteredUser`` to a ``Role`` within a ``Scope``.
-  This is the primary mechanism for granting permissions to users.
+  This is the primary mechanism for granting permissions to users. A user has a role
+  on a scope at most once; the same role on another scope is a separate assignment.
+  ``list_assignments(scope)`` and ``remove_assignments(scope)`` work on a scope and
+  every scope below it (e.g. all roles in a tenant).
+
+A role on a scope applies to every scope below it, so a typical multi-tenant setup is
+an ``admin`` role on ``"/app"`` for global admins and a ``tenant-admin`` role on
+``"/app/tenants/<tenant-id>"`` for the admins of one tenant.
+
+Paths
+-----
+Scope and permission paths are normalized to one spelling wherever they enter
+(assigning, defining roles, checking): ``"/app/"`` and ``"app"`` are ``"/app"``,
+``"/app//x"`` is ``"/app/x"``, ``"/foo/Foo Bar"`` is ``"/foo/foo-bar"``; letters are
+lowercased, accents removed, other characters become ``-``, and dashes (also double
+ones, ``"/lib--python-commons"``) are kept. Paths whose meaning normalizing would
+change raise ``ValueError``: segments ``.`` and ``..``, segments that are empty after
+normalizing, and paths without segments other than the root ``"/"`` (e.g. ``""``).
+
+Because different spellings become one scope, ids that differ only in case or special
+characters share their roles (``Tenant_A`` and ``tenant-a``): build scopes from
+generated ids (``commons.id_operators.new_id``), not from names.
+
+Default Roles
+-------------
+Roles passed as ``default_roles`` to the repository are defined in code. They are
+synced into the database when the repository is created: stored with exactly the
+permissions of the code and marked as default role (``Role.is_default_role``), so they
+can be assigned like any other role; a role of the same name created by the app is
+taken over. A default role removed from the code is deleted on the next start,
+together with its assignments. Default roles can't be changed or deleted at runtime
+(``upsert_role()`` and ``delete_role()`` raise ``ValueError``); apps should show them as
+not editable.
 
 Repository Pattern
 ------------------
@@ -46,6 +81,12 @@ User operations are performed through repository classes:
 
 - **SQLUsersRepository**: Concrete implementation using SQLAlchemy/SQLModel for
   database persistence.
+
+Command Line
+------------
+``python -m commons.users hash-password`` prints a bcrypt hash for a password, to be
+used as ``password_hash`` of users defined in the settings (see
+``commons.settings.StandardUser``).
 
 Example Usage
 -------------

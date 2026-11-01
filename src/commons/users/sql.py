@@ -6,9 +6,14 @@ This module provides ``SQLUsersRepository``, a concrete implementation of
 database using SQLAlchemy and SQLModel.
 """
 
-from sqlalchemy import Engine, func, select
-from sqlalchemy.orm import sessionmaker
-from sqlmodel import SQLModel  # type: ignore
+import logging
+from typing import Any, cast
+
+from sqlalchemy import CursorResult, Engine, delete, func, or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Mapped, selectinload, sessionmaker
+from sqlalchemy.sql.elements import ColumnElement
+from sqlmodel import SQLModel, col  # type: ignore
 
 from commons.users.repository import (
     DefaultRoleAssignment,
@@ -21,8 +26,12 @@ from commons.users.user import (
     RegisteredUser,
     Role,
     RoleAssignment,
+    RolePermission,
     Scope,
+    _normalize_path,
 )
+
+LOG = logging.getLogger(__name__)
 
 
 class SQLUsersRepository(UsersRepository):
@@ -33,13 +42,18 @@ class SQLUsersRepository(UsersRepository):
     to a SQL database. It automatically creates the required tables on
     initialization if they don't exist.
 
+    Existing tables are not migrated: a database created before commons 1.2 (without
+    ``roles.is_default_role`` and the unique role assignments) must be recreated.
+
     Supported databases include SQLite, PostgreSQL, MySQL, and any other
     database supported by SQLAlchemy.
 
     Args:
         engine: SQLAlchemy Engine connected to the database.
-        default_roles: Predefined roles available without database lookup.
-            These roles are checked first when looking up roles by name.
+        default_roles: Roles defined in code. They are synced into the database on
+            creation (marked as default roles, with exactly these permissions); default
+            roles no longer listed are deleted with their assignments. They can't be
+            changed or deleted at runtime. See "Default Roles" in [`commons.users`][commons.users].
         anonymous_default_permissions: Role assignments automatically applied
             to anonymous (unauthenticated) users.
         authenticated_default_permissions: Role assignments automatically applied
@@ -94,10 +108,35 @@ class SQLUsersRepository(UsersRepository):
 
         SQLModel.metadata.create_all(self._engine, checkfirst=True)
 
+        for role in self.default_roles:
+            role.is_default_role = True
+            for permission in role.permissions:
+                permission.name = _normalize_path("permission", permission.name)
+
+        try:
+            self._sync_default_roles()
+        except IntegrityError:
+            # Another process (e.g. a second worker starting) inserted the same rows at the same moment;
+            # running again finds them and only updates them.
+            self._sync_default_roles()
+
     def add_assignment(self, user: RegisteredUser | str, scope: str, role: str) -> RoleAssignment:
+        if isinstance(user, str):
+            user = self.get_user_by_username(user)
+        scope = _normalize_path("scope", scope)
+        self.get_role_by_name(role)  # KeyError for an unknown role, before anything is written
+
         with self._create_session() as session:
-            if isinstance(user, str):
-                user = self.get_user_by_username(user)
+            existing = session.execute(
+                select(RoleAssignment).where(
+                    RoleAssignment.user_id == user.id,  # type: ignore[arg-type]
+                    RoleAssignment.scope_name == scope,  # type: ignore[arg-type]
+                    RoleAssignment.role_name == role,  # type: ignore[arg-type]
+                )
+            ).scalar_one_or_none()
+            if existing:
+                session.expunge(existing)
+                return existing
 
             existing_scope = session.execute(
                 select(Scope).where(Scope.name == scope)  # type: ignore[arg-type]
@@ -117,6 +156,8 @@ class SQLUsersRepository(UsersRepository):
             return assignment
 
     def delete_role(self, role: Role | str) -> None:
+        self._reject_default_role(role)
+
         with self._create_session() as session:
             if isinstance(role, str):
                 db_role = session.execute(
@@ -189,6 +230,25 @@ class SQLUsersRepository(UsersRepository):
                 session.expunge(ra)
             return results
 
+    def list_assignments(self, scope: str) -> list[RoleAssignment]:
+        scope = _normalize_path("scope", scope)
+        with self._create_session() as session:
+            results = list(
+                session.execute(
+                    select(RoleAssignment)
+                    .where(_in_subtree(col(RoleAssignment.scope_name), scope))
+                    .options(
+                        selectinload(RoleAssignment.user),  # type: ignore[arg-type]
+                        selectinload(RoleAssignment.role),  # type: ignore[arg-type]
+                        selectinload(RoleAssignment.scope),  # type: ignore[arg-type]
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            session.expunge_all()
+            return results
+
     def list_roles(self) -> list[Role]:
         with self._create_session() as session:
             results = list(session.execute(select(Role)).scalars().all())
@@ -209,20 +269,38 @@ class SQLUsersRepository(UsersRepository):
                 session.delete(db_assignment)
                 session.commit()
 
-    def upsert_role(self, role: Role) -> Role:
+    def remove_assignments(self, scope: str) -> int:
+        scope = _normalize_path("scope", scope)
         with self._create_session() as session:
-            for permission in role.permissions:
-                existing_perm = session.execute(
-                    select(Permission).where(Permission.name == permission.name)  # type: ignore[arg-type]
-                ).scalar_one_or_none()
-                if not existing_perm:
-                    session.add(permission)
-
-            merged_role = session.merge(role)
+            result = session.execute(delete(RoleAssignment).where(_in_subtree(col(RoleAssignment.scope_name), scope)))
+            still_used = select(col(RoleAssignment.scope_name))
+            session.execute(
+                delete(Scope).where(_in_subtree(col(Scope.name), scope), col(Scope.name).not_in(still_used))
+            )
             session.commit()
-            session.refresh(merged_role)
-            session.expunge(merged_role)
-            return merged_role
+            return cast(CursorResult[Any], result).rowcount
+
+    def upsert_role(self, role: Role) -> Role:
+        self._reject_default_role(role)
+
+        for permission in role.permissions:
+            permission.name = _normalize_path("permission", permission.name)
+
+        with self._create_session() as session:
+            # Built in the session instead of merging the given objects: merging cascades the role's
+            # permissions, and stored ones would be inserted a second time.
+            permissions = [session.get(Permission, p.name) or Permission(name=p.name) for p in role.permissions]
+            db_role = session.get(Role, role.name)
+            if db_role is None:
+                db_role = Role(name=role.name, permissions=permissions)
+                session.add(db_role)
+            else:
+                db_role.permissions = permissions
+
+            session.commit()
+            session.refresh(db_role)
+            session.expunge(db_role)
+            return db_role
 
     def upsert_user(self, user: RegisteredUser) -> RegisteredUser:
         with self._create_session() as session:
@@ -232,6 +310,47 @@ class SQLUsersRepository(UsersRepository):
             session.expunge(merged_user)
             return merged_user
 
+    def _reject_default_role(self, role: Role | str) -> None:
+        name = role if isinstance(role, str) else role.name
+        if (isinstance(role, Role) and role.is_default_role) or any(r.name == name for r in self.default_roles):
+            raise ValueError(f"Role `{name}` is a default role; it can only be changed in the code (`default_roles`).")
+
+    def _sync_default_roles(self) -> None:
+        """
+        Make the database match ``default_roles``, the code being the source of truth.
+
+        Every default role is stored with exactly the permissions of the code, marked as
+        default role; a role of the same name created by the app is taken over, keeping
+        its assignments. Roles marked as default role that are no longer in the code are
+        deleted together with their assignments. Roles of the app are not touched.
+        """
+        names = {role.name for role in self.default_roles}
+
+        with self._create_session() as session:
+            for role in self.default_roles:
+                permissions = [session.get(Permission, p.name) or Permission(name=p.name) for p in role.permissions]
+                db_role = session.get(Role, role.name)
+                if db_role is None:
+                    session.add(Role(name=role.name, is_default_role=True, permissions=permissions))
+                else:
+                    db_role.is_default_role = True
+                    db_role.permissions = permissions
+
+            removed = session.execute(
+                select(col(Role.name)).where(col(Role.is_default_role), col(Role.name).not_in(names))
+            ).scalars()
+            for name in list(removed):
+                result = session.execute(delete(RoleAssignment).where(col(RoleAssignment.role_name) == name))
+                session.execute(delete(RolePermission).where(col(RolePermission.role_name) == name))
+                session.execute(delete(Role).where(col(Role.name) == name))
+                LOG.info(
+                    "Deleted default role `%s`, which is no longer in the code, with %d assignment(s).",
+                    name,
+                    cast(CursorResult[Any], result).rowcount,
+                )
+
+            session.commit()
+
     def _find_role_by_name(self, name: str) -> Role | None:
         with self._create_session() as session:
             result = session.execute(
@@ -240,3 +359,10 @@ class SQLUsersRepository(UsersRepository):
             if result:
                 session.expunge(result)
             return result
+
+
+def _in_subtree(column: Mapped[str], scope: str) -> ColumnElement[bool]:
+    """The rows whose scope is ``scope`` or below it; ``scope`` is normalized, so it holds neither ``%`` nor ``_``."""
+    if scope == "/":
+        return column.is_not(None)
+    return or_(column == scope, column.like(scope + "/%"))

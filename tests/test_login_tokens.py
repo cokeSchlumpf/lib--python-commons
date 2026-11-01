@@ -378,3 +378,27 @@ class TestLoggingSender:
         assert "123456" in caplog.text
         assert _link("abc") in caplog.text
         assert "jane@example.com" in caplog.text
+
+
+class TestUserWithoutPassword:
+    @pytest.fixture
+    def nopass(self, users):
+        users.upsert_user(RegisteredUser.create("max", None, "Max Muster", email="max@example.com"))
+
+    def test_signs_in_with_link(self, nopass, service, sender, users):
+        service.request_login("max@example.com", link_for=_link)
+
+        result = service.redeem_link(_token_from(sender.last.link))
+
+        assert result.ok
+        assert result.user is not None and result.user.username == "max"
+        assert users.authenticate("max", "") is None
+
+    def test_signs_in_with_code(self, nopass, service, sender, users):
+        request = service.request_login("max@example.com", link_for=_link)
+
+        result = service.redeem_code(request.request_id, sender.last.code)
+
+        assert result.ok
+        assert result.user is not None and result.user.username == "max"
+        assert users.authenticate("max", "anything") is None
