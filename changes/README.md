@@ -17,7 +17,7 @@ Every change of this repository is described here before it is made and kept her
 
 - `01--backlog/`: ideas, one file each.
 - `02--open/`: changes being specified, planned or implemented, one folder each.
-- `03--closed/`: done changes (intent and spec with its Outcome), and dropped ideas (their file, with the reason).
+- `03--closed/`: done changes (intent and spec with its Outcome), and dropped ideas (a folder each, with the item as `intent.md` and the reason under `## Dropped`).
 
 A change keeps its number `T-<n>` from the backlog to the end; numbers are never reused.
 
