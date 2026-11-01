@@ -19,10 +19,11 @@ Classes:
 
 import re
 from typing import Literal, Protocol, runtime_checkable
-from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import Column, ForeignKey, PrimaryKeyConstraint, String
 from sqlmodel import Field, Relationship, SQLModel  # type: ignore
+
+from commons.id_operators import new_id
 
 
 UserNameType = Literal["technical", "casual", "formal", "full"]
@@ -272,7 +273,7 @@ class AuthenticatedUser(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
-    id_: str = Field(default_factory=lambda: str(uuid4()), validation_alias="id", serialization_alias="id")
+    id_: str = Field(default_factory=new_id, validation_alias="id", serialization_alias="id")
     display_name_: str = Field(validation_alias="display_name", serialization_alias="display_name")
     firstname_: str | None = Field(default=None, validation_alias="firstname", serialization_alias="firstname")
     lastname_: str | None = Field(default=None, validation_alias="lastname", serialization_alias="lastname")
@@ -347,7 +348,7 @@ class AuthenticatedUser(BaseModel):
             A new AuthenticatedUser instance.
         """
         return AuthenticatedUser(
-            id_=id or str(uuid4()),
+            id_=id or new_id(),
             display_name_=display_name,
             firstname_=firstname,
             lastname_=lastname,
@@ -564,7 +565,7 @@ class RoleAssignment(SQLModel, table=True):
     __tablename__ = "role_assignments"  # type: ignore
 
     id: str = Field(
-        default_factory=lambda: str(uuid4()),
+        default_factory=new_id,
         sa_column=Column("id", String(64), primary_key=True),
         description="Unique id of the role assignment.",
     )
@@ -641,7 +642,7 @@ class RegisteredUser(SQLModel, table=True):
     __tablename__ = "registered_users"  # type: ignore
 
     id_: str = Field(
-        default_factory=lambda: str(uuid4()),
+        default_factory=new_id,
         validation_alias="id",
         serialization_alias="id",
         sa_column=Column("id", String(64), primary_key=True),
@@ -771,7 +772,7 @@ class RegisteredUser(SQLModel, table=True):
             )
         """
         return RegisteredUser(
-            id_=id or str(uuid4()),
+            id_=id or new_id(),
             username_=username,
             password_hash_=password_hash,
             display_name_=display_name,

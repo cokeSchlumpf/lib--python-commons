@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from commons.string_operators import random_name
 from commons.datetime_operators import utc_now
+from commons.id_operators import new_id
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
-from uuid import uuid4
 
 from .job import Job, JobStatus
 
@@ -45,7 +45,7 @@ class JobsRepositoryPort(ABC):
         retry_timeout_seconds: int = 60,
     ) -> Job:
         if id is None:
-            id = str(uuid4())
+            id = new_id()
 
         if name is None:
             name = random_name([job.name for job in self.get_jobs()])

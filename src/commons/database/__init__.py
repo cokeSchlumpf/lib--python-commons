@@ -2,11 +2,12 @@
 
 Reusable persistence primitives that sit *below* any one app's ORM models:
 
+- **Ids** (:func:`new_id`, from :mod:`commons.id_operators`) — time-ordered UUIDv7 strings for new rows.
 - **Column length bounds** (:data:`ID_LENGTH`, :data:`CODE_LENGTH`, :data:`NAME_LENGTH`)
   — pick a bound so String columns stay indexable on SQL Server.
 - **Column types** (:class:`EnumString`, :class:`PydanticJSON`, :class:`UTCDateTime`)
   — ``TypeDecorator``s handed to ``Field(sa_type=...)``.
-- **Table mixins** (:class:`EntityMixin`, :class:`HistoryMixin`) — a uuid-PK operational
+- **Table mixins** (:class:`EntityMixin`, :class:`HistoryMixin`) — a UUIDv7-PK operational
   entity base and its temporal history-table companion.
 - **Unit-of-work ports** (:class:`UnitOfWork`, :class:`UnitOfWorkFactory`) — abstract
   transactional-scope contracts, generic over an app-defined repository bundle ``T``.
@@ -17,6 +18,8 @@ Reusable persistence primitives that sit *below* any one app's ORM models:
 These are engine-portable (SQLite for tests, SQL Server / Azure SQL in production); the
 SQL-Server-only pieces (filtered indexes) are gated by dialect.
 """
+
+from commons.id_operators import new_id
 
 from .column_lengths import CODE_LENGTH, ID_LENGTH, NAME_LENGTH
 from .entity import EntityMixin
@@ -40,4 +43,5 @@ __all__ = [
     "UTCDateTime",
     "UnitOfWork",
     "UnitOfWorkFactory",
+    "new_id",
 ]

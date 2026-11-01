@@ -1,15 +1,11 @@
 from datetime import datetime
 from typing import Any, ClassVar, Self
-from uuid import uuid7
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from commons.database import ID_LENGTH
 from commons.datetime_operators import utc_now
-
-
-def _new_event_id() -> str:
-    return str(uuid7())
+from commons.id_operators import new_id
 
 
 class EventEnvelope(BaseModel):
@@ -69,7 +65,7 @@ class Event(BaseModel):
     topic: ClassVar[str]
     event_type: ClassVar[str]
 
-    event_id: str = Field(default_factory=_new_event_id, min_length=ID_LENGTH, max_length=ID_LENGTH)
+    event_id: str = Field(default_factory=new_id, min_length=ID_LENGTH, max_length=ID_LENGTH)
     occurred_at: datetime = Field(default_factory=utc_now)
 
     @property

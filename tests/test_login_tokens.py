@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import threading
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -291,6 +292,20 @@ class TestRateLimits:
 
         assert store.get(limited.request_id) is None
         assert service.redeem_code(limited.request_id, "123456").status is RedeemStatus.INVALID
+
+
+class TestRequestIds:
+    def test_request_ids_stay_random_uuid4_hex(self, service):
+        requests = [service.request_login("jane@example.com", link_for=_link) for _ in range(4)]
+        requests.append(service.request_login("nobody@example.com", link_for=_link))
+
+        assert [r.status for r in requests] == [RequestStatus.SENT] * 3 + [
+            RequestStatus.RATE_LIMITED,
+            RequestStatus.UNKNOWN_EMAIL,
+        ]
+        for request in requests:
+            assert len(request.request_id) == 32
+            assert uuid.UUID(hex=request.request_id).version == 4
 
 
 class TestPurgeExpired:

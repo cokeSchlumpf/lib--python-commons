@@ -1,5 +1,4 @@
-from uuid import uuid4
-
+from commons.id_operators import new_id
 from commons.string_operators import pluralize, to_snake_case
 from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, SQLModel
@@ -13,13 +12,13 @@ def _entity_tablename(class_name: str) -> str:
 class EntityMixin(SQLModel):
     """Base for an operational entity table: a generated ``id`` primary key and a derived table name.
 
-    Inheriting it (with ``table=True``) gives the table a uuid-string ``id`` PK and a name derived from
+    Inheriting it (with ``table=True``) gives the table a UUIDv7-string ``id`` PK (`commons.id_operators.new_id`) and a name derived from
     the class (``CountryORM`` -> ``countries``) via ``declared_attr`` (so it runs at class-creation time).
     Override the name by setting ``__tablename__`` explicitly on the subclass.
     """
 
     id: str = Field(
-        default_factory=lambda: str(uuid4()),
+        default_factory=new_id,
         primary_key=True,
         min_length=36,
         max_length=36,
