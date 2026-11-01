@@ -4,6 +4,9 @@ All notable changes to this library are documented here. The newest release is a
 
 ## [1.5.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.4.0...v1.5.0) (2026-11-01)
 
+### Highlights
+
+Adds NVARCHAR-based Unicode column types used for name and display-name fields on Azure SQL to prevent non-Latin characters being stored as question marks. Existing tables remain VARCHAR until you convert them (no breakage), and the docs include guidance and an ALTER TABLE recipe; tests covering SQL Server, SQLite DDL and a non-Latin-1 round trip were added.
 
 ### Features
 
