@@ -2,6 +2,13 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.6.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.5.0...v1.6.0) (2026-11-02)
+
+
+### Features
+
+* **users:** user access period and listing users (T-009) ([#41](https://github.com/cokeSchlumpf/lib--python-commons/issues/41)) ([4cd086a](https://github.com/cokeSchlumpf/lib--python-commons/commit/4cd086a654a9c6bc3ed81e4c2e1993791bf900c9))
+
 ## [1.5.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.4.0...v1.5.0) (2026-11-01)
 
 ### Highlights
