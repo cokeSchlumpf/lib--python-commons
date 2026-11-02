@@ -18,9 +18,10 @@ Classes:
 """
 
 import re
+from datetime import datetime, timezone
 from typing import Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import Boolean, Column, ForeignKey, PrimaryKeyConstraint, String, Unicode, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, PrimaryKeyConstraint, String, Unicode, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel  # type: ignore
 
 from commons.id_operators import new_id
@@ -663,6 +664,12 @@ class RegisteredUser(SQLModel, table=True):
             ``"de-CH"``), or ``None`` if they never chose one. pyhx uses it to pick
             the language of pages and login mails; it can be changed and saved with
             ``upsert_user``.
+        is_active: Whether the user may sign in at all (default ``True``).
+        valid_from: Start of the user's access period (UTC), or ``None`` for no start.
+        valid_until: End of the access period (UTC, exclusive), or ``None`` for no end.
+            An inactive user, or one outside the period, can't sign in and has no
+            permissions (see ``can_sign_in``). Existing ``registered_users`` tables are
+            not migrated: a database created before commons 1.6 must be recreated.
 
     Example::
 
@@ -737,6 +744,24 @@ class RegisteredUser(SQLModel, table=True):
     locale_: str | None = Field(
         default=None, validation_alias="locale", serialization_alias="locale", sa_column=Column("locale", String(35))
     )
+    is_active_: bool = Field(
+        default=True,
+        validation_alias="is_active",
+        serialization_alias="is_active",
+        sa_column=Column("is_active", Boolean, nullable=False, default=True),
+    )
+    valid_from_: datetime | None = Field(
+        default=None,
+        validation_alias="valid_from",
+        serialization_alias="valid_from",
+        sa_column=Column("valid_from", DateTime),
+    )
+    valid_until_: datetime | None = Field(
+        default=None,
+        validation_alias="valid_until",
+        serialization_alias="valid_until",
+        sa_column=Column("valid_until", DateTime),
+    )
 
     @property
     def id(self) -> str:
@@ -773,6 +798,49 @@ class RegisteredUser(SQLModel, table=True):
     @locale.setter
     def locale(self, value: str | None) -> None:
         self.locale_ = value
+
+    @property
+    def is_active(self) -> bool:
+        return self.is_active_
+
+    @is_active.setter
+    def is_active(self, value: bool) -> None:
+        self.is_active_ = value
+
+    @property
+    def valid_from(self) -> datetime | None:
+        return _as_utc(self.valid_from_)
+
+    @valid_from.setter
+    def valid_from(self, value: datetime | None) -> None:
+        self.valid_from_ = _as_naive_utc(value)
+
+    @property
+    def valid_until(self) -> datetime | None:
+        return _as_utc(self.valid_until_)
+
+    @valid_until.setter
+    def valid_until(self, value: datetime | None) -> None:
+        self.valid_until_ = _as_naive_utc(value)
+
+    def can_sign_in(self, at: datetime | None = None) -> bool:
+        """
+        Whether the user may sign in and use their permissions at ``at``.
+
+        True if the user is active and ``at`` lies within the access period:
+        not before ``valid_from`` and before ``valid_until`` (exclusive); a
+        missing bound doesn't limit. Otherwise the user can't sign in
+        (``UsersRepository.authenticate``, login links and codes) and has no
+        permissions (``UsersRepository.has_permission``).
+
+        Args:
+            at: The time to check, timezone-aware; defaults to now (UTC). A naive
+                value is taken as UTC.
+        """
+        at = _as_utc(at) or datetime.now(timezone.utc)
+        valid_from = self.valid_from
+        valid_until = self.valid_until
+        return self.is_active and (valid_from is None or valid_from <= at) and (valid_until is None or at < valid_until)
 
     def name(self, type: UserNameType = "casual") -> str:
         """
@@ -811,6 +879,9 @@ class RegisteredUser(SQLModel, table=True):
         lastname: str | None = None,
         email: str | None = None,
         locale: str | None = None,
+        is_active: bool = True,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
     ) -> "RegisteredUser":
         """
         Create a RegisteredUser with the given attributes.
@@ -826,6 +897,9 @@ class RegisteredUser(SQLModel, table=True):
             lastname: Last name (optional).
             email: Email address (optional).
             locale: The language the user chose, e.g. ``"de"`` (optional).
+            is_active: Whether the user may sign in at all (default ``True``).
+            valid_from: Start of the access period, timezone-aware (optional, no limit if ``None``).
+            valid_until: End of the access period, exclusive, timezone-aware (optional, no limit if ``None``).
 
         Returns:
             A new RegisteredUser instance.
@@ -849,4 +923,22 @@ class RegisteredUser(SQLModel, table=True):
             lastname_=lastname,
             email_=email,
             locale_=locale,
+            is_active_=is_active,
+            valid_from_=_as_naive_utc(valid_from),
+            valid_until_=_as_naive_utc(valid_until),
         )
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    """``value`` in UTC, timezone-aware; a naive value (as read from the database) is taken as UTC."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _as_naive_utc(value: datetime | None) -> datetime | None:
+    """``value`` as naive UTC, as stored in the database (``DateTime`` keeps no time zone on every engine)."""
+    utc = _as_utc(value)
+    return utc.replace(tzinfo=None) if utc is not None else None

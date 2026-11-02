@@ -117,8 +117,9 @@ class UsersRepository(abc.ABC):
         """
         Verify credentials and return the user if valid.
 
-        A user without a password (``password_hash`` is ``None`` or empty) is never
-        authenticated, whatever password is given.
+        A user without a password (``password_hash`` is ``None`` or empty), and a user
+        who can't sign in now (inactive or outside their access period, see
+        ``RegisteredUser.can_sign_in``), is never authenticated, whatever password is given.
 
         Args:
             username: The username to authenticate.
@@ -128,8 +129,8 @@ class UsersRepository(abc.ABC):
             The authenticated RegisteredUser if credentials are valid, None otherwise.
         """
         user = self.find_user_by_username(username)
-        if not user or not user.password_hash:
-            # A user without a password can never sign in with one.
+        if not user or not user.password_hash or not user.can_sign_in():
+            # A user without a password can never sign in with one; an inactive one not at all.
             return None
         if self._password_verifier(password, user.password_hash):
             return user
@@ -218,6 +219,16 @@ class UsersRepository(abc.ABC):
 
         Returns:
             The RegisteredUser if found, None otherwise.
+        """
+        ...
+
+    @abc.abstractmethod
+    def list_users(self) -> list[RegisteredUser]:
+        """
+        All registered users, ordered by username, including inactive ones.
+
+        Returns:
+            The users; an empty list if there are none.
         """
         ...
 
@@ -429,7 +440,9 @@ class UsersRepository(abc.ABC):
         Check whether a registered user has a specific permission in a scope.
 
         Checks both registered_default_permissions (applied to all registered users)
-        and the user's individual role assignments.
+        and the user's individual role assignments. A user who can't sign in now
+        (inactive or outside their access period, see ``RegisteredUser.can_sign_in``)
+        has no permission at all.
 
         Args:
             user: The registered user to check permissions for.
@@ -441,6 +454,9 @@ class UsersRepository(abc.ABC):
         """
         scope = _normalize_path("scope", scope)
         permission = _normalize_path("permission", permission)
+
+        if not user.can_sign_in():
+            return False
 
         if any(self._grants(p.scope, p.role, scope, permission) for p in self.registered_default_permissions):
             return True
