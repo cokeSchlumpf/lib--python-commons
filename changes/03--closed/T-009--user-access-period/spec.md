@@ -70,3 +70,15 @@ None.
 ## Out of scope
 
 - Signing a user out of a running session (pyhx); time zones; a UI.
+
+## Outcome
+
+Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
+
+- **D1** `valid_from` and `valid_until` are plain `DateTime` columns holding naive UTC instead of `UTCDateTime`: `commons.database` imports `commons.users`, so `commons.users.user` can't import it. The properties return aware UTC values, so R1 holds.
+- **F1** `check_permission` raises `LookupError` (not `PermissionError`); unchanged.
+- **F2** pyhx needs no change: it checks only `result.ok` after redeeming and shows the same page for every request status.
+
+Rollout: PR cokeSchlumpf/lib--python-commons#41, released with the next Release PR (1.6.0); databases created before 1.6 are recreated.
+
+Open after this change: `app--casesight` T-008 uses the access period and `list_users` (Michael Wellner); `app--beleglotse` and `app--cross-border-rules` recreate their databases on their next update of `commons`.
