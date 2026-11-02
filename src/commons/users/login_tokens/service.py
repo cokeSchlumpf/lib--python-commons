@@ -189,11 +189,14 @@ class LoginTokenService:
         normalized = _normalize_email(email)
         email_hash = self._hash(normalized)
 
-        # Unknown addresses and rate-limited requests are not stored; their
+        # Unknown addresses, inactive users and rate-limited requests are not stored; their
         # random request id exists nowhere, so a code entered for it fails.
         user = self._users.find_user_by_email(normalized)
         if user is None:
             return LoginRequest(uuid4().hex, RequestStatus.UNKNOWN_EMAIL, expires_at)
+
+        if not user.can_sign_in(now):
+            return LoginRequest(uuid4().hex, RequestStatus.USER_INACTIVE, expires_at)
 
         if self._is_rate_limited(now, email_hash):
             return LoginRequest(uuid4().hex, RequestStatus.RATE_LIMITED, expires_at)
@@ -318,6 +321,8 @@ class LoginTokenService:
         user = self._users.find_user_by_id(request.user_id)
         if user is None:
             return RedeemResult(RedeemStatus.INVALID)
+        if not user.can_sign_in(now):
+            return RedeemResult(RedeemStatus.USER_INACTIVE)
         return RedeemResult(RedeemStatus.OK, user=user, redirect_to=request.redirect_to)
 
     def _consumed_status(self, request: LoginTokenRequest) -> RedeemStatus:

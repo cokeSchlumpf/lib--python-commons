@@ -67,6 +67,9 @@ class RequestStatus(StrEnum):
     RATE_LIMITED = "rate_limited"
     """Too many requests for this address; nothing was sent."""
 
+    USER_INACTIVE = "user_inactive"
+    """The user can't sign in now (inactive or outside their access period); nothing was sent or stored."""
+
 
 @dataclass(frozen=True)
 class LoginRequest:
@@ -76,8 +79,8 @@ class LoginRequest:
     Attributes:
         request_id: Identifier to redeem the code with (keep it, e.g. in the
             session). Present for every status, so callers can treat all
-            outcomes alike; for an unknown address or a rate-limited request
-            it's random and stored nowhere, so a code for it fails.
+            outcomes alike; for an unknown address, an inactive user or a
+            rate-limited request it's random and stored nowhere, so a code for it fails.
         status: What happened; don't show it to the user (see ``RequestStatus``).
         expires_at: When the link and the code expire.
     """
@@ -104,6 +107,9 @@ class RedeemStatus(StrEnum):
 
     TOO_MANY_ATTEMPTS = "too_many_attempts"
     """Too many wrong codes; the request is invalidated."""
+
+    USER_INACTIVE = "user_inactive"
+    """The user can't sign in now (inactive or outside their access period); the request is used up."""
 
 
 @dataclass(frozen=True)

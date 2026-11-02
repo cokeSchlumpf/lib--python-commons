@@ -42,7 +42,8 @@ class SQLUsersRepository(UsersRepository):
     to a SQL database. It automatically creates the required tables on
     initialization if they don't exist.
 
-    Existing tables are not migrated: a database created before commons 1.4 (without
+    Existing tables are not migrated: a database created before commons 1.6 (without
+    ``registered_users.is_active``, ``valid_from`` and ``valid_until``), before 1.4 (without
     ``registered_users.locale``) or before commons 1.2 (without ``roles.is_default_role``
     and the unique role assignments) must be recreated.
 
@@ -205,6 +206,13 @@ class SQLUsersRepository(UsersRepository):
             if result:
                 session.expunge(result)
             return result
+
+    def list_users(self) -> list[RegisteredUser]:
+        with self._create_session() as session:
+            users = list(session.execute(select(RegisteredUser).order_by(col(RegisteredUser.username_))).scalars())
+            for user in users:
+                session.expunge(user)
+            return users
 
     def find_user_by_username(self, username: str) -> RegisteredUser | None:
         with self._create_session() as session:
