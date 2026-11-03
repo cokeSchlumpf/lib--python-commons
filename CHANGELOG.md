@@ -2,6 +2,13 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.6.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.6.0...v1.6.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* pluralize words ending in -is (analysis → analyses) ([#43](https://github.com/cokeSchlumpf/lib--python-commons/issues/43)) ([c147f4b](https://github.com/cokeSchlumpf/lib--python-commons/commit/c147f4bbf69f4bd5a1b2539f3a2aaa602aeaf1ca))
+
 ## [1.6.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.5.0...v1.6.0) (2026-11-02)
 
 
