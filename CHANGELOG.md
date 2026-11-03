@@ -2,6 +2,16 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.6.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.6.0...v1.6.1) (2026-11-03)
+
+### Highlights
+
+Pluralization of words ending in -is was fixed so they now form correct plurals (e.g. analysis → analyses), which prevents incorrectly derived table names for ORM classes. Tests were added for the pluralize function and for derived entity/history table names. Known apps are unaffected because the only ORM classes ending in -is set __tablename__ explicitly; apps that relied on the old incorrect derived names should pin the name with __tablename__.
+
+### Bug Fixes
+
+* Fix pluralization of words ending in -is so they become -es (analysis → analyses), preventing derived table names like case_analysises; tests added for pluralize and for derived entity/history table names. ([#43](https://github.com/cokeSchlumpf/lib--python-commons/issues/43)) ([c147f4b](https://github.com/cokeSchlumpf/lib--python-commons/commit/c147f4bbf69f4bd5a1b2539f3a2aaa602aeaf1ca))
+
 ## [1.6.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.5.0...v1.6.0) (2026-11-02)
 
 
