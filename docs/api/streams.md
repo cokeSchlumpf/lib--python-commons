@@ -34,7 +34,10 @@ async for position, value in progress.read(job_id): ...
 
 ## Configuration
 
-`InMemoryLiveStreams(retention=300.0)`: seconds a closed stream stays readable, for late readers and reconnects.
+`InMemoryLiveStreams(retention=300.0, max_length=None)`:
+
+- `retention`: seconds a closed stream stays readable, for late readers and reconnects.
+- `max_length`: payloads kept per stream, the newest; `None` keeps all. Set it for streams that are never closed, e.g. one stream per long-lived record that carries its changes, so memory stays bounded.
 
 ## Usage
 
@@ -50,6 +53,7 @@ async for position, value in progress.read(job_id): ...
 - **From the start, or resumed.** Without `after`, a reader gets all payloads of the stream, also when it connects late; with `after`, only those after that position.
 - **Missing streams are waited for**, unless `wait=False`: a reader may connect before the writer started.
 - **The stream ends** for its readers when it is closed. A closed stream is kept for `retention` seconds, then disappears; reading it then waits for a new stream, or ends with `wait=False`.
+- **Trimmed streams** (`max_length`): an append drops the oldest payloads beyond the limit. Positions keep counting, so a payload keeps its position; a reader whose position is older than the oldest kept payload continues with it and misses the dropped ones (at most once).
 - **Single application instance.** `InMemoryLiveStreams` only serves readers in the same process; a Redis adapter would serve several instances.
 
 ## Errors
