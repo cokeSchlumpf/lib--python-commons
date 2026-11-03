@@ -174,6 +174,8 @@ def pluralize(word: str) -> str:
 
     if word.endswith("y"):
         return word[:-1] + "ies"
+    elif word.endswith("is"):
+        return word[:-2] + "es"
     elif word.endswith(("s", "sh", "ch", "x")):
         return word + "es"
     else:

@@ -129,6 +129,11 @@ class TestPluralize:
     def test_word_ending_in_s(self):
         assert pluralize("bus") == "buses"
 
+    def test_word_ending_in_is(self):
+        assert pluralize("analysis") == "analyses"
+        assert pluralize("basis") == "bases"
+        assert pluralize("case_analysis") == "case_analyses"
+
     def test_word_ending_in_sh(self):
         assert pluralize("brush") == "brushes"
 
