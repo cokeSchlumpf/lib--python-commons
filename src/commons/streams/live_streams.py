@@ -43,6 +43,7 @@ class LiveStreams(Protocol):
 @dataclass
 class _Stream:
     payloads: list[bytes] = field(default_factory=list)
+    dropped: int = 0  # payloads trimmed from the front; the position of payloads[i] is dropped + i + 1
     closed_at: float | None = None
 
 
@@ -51,15 +52,23 @@ class InMemoryLiveStreams:
 
     Payloads are kept as the bytes they were appended as, so values go through their codec as with any other
     backend. The position of a payload is its number in the stream, starting at ``"1"``. A closed stream is kept
-    for ``retention`` seconds, then dropped on the next access. A Redis adapter would replace this for several
-    instances.
+    for ``retention`` seconds, then dropped on the next access. With ``max_length``, a stream keeps only its last
+    payloads, so a stream that is never closed stays bounded; positions keep counting, and a reader that is behind the
+    oldest kept payload continues with it. A Redis adapter would replace this for several instances.
 
     Args:
         retention: Seconds a closed stream stays readable.
+        max_length: Payloads kept per stream (the newest); ``None`` keeps all.
+
+    Raises:
+        ValueError: If ``max_length`` is less than 1.
     """
 
-    def __init__(self, *, retention: float = 300.0) -> None:
+    def __init__(self, *, retention: float = 300.0, max_length: int | None = None) -> None:
+        if max_length is not None and max_length < 1:
+            raise ValueError("`max_length` must be at least 1.")
         self._retention = retention
+        self._max_length = max_length
         self._streams: dict[str, _Stream] = {}
         self._waiters: set[asyncio.Event] = set()
 
@@ -70,6 +79,10 @@ class InMemoryLiveStreams:
             raise ValueError(f"The stream `{key}` is closed.")
 
         stream.payloads.extend(payloads)
+        excess = len(stream.payloads) - self._max_length if self._max_length is not None else 0
+        if excess > 0:
+            del stream.payloads[:excess]
+            stream.dropped += excess
         self._notify()
 
     async def close(self, key: str) -> None:
@@ -88,9 +101,11 @@ class InMemoryLiveStreams:
                 return
 
             if stream is not None:
-                while position < len(stream.payloads):
-                    position += 1
-                    yield str(position), stream.payloads[position - 1]
+                while position < stream.dropped + len(stream.payloads):
+                    # A reader behind the oldest kept payload (also after trimming while it waited at the yield)
+                    # continues with it.
+                    position = max(position, stream.dropped) + 1
+                    yield str(position), stream.payloads[position - stream.dropped - 1]
 
                 if stream.closed_at is not None:
                     return
