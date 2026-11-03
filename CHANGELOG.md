@@ -2,6 +2,13 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.7.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.6.1...v1.7.0) (2026-11-03)
+
+
+### Features
+
+* **streams:** keep live streams to their last payloads with max_length ([#45](https://github.com/cokeSchlumpf/lib--python-commons/issues/45)) ([797d95a](https://github.com/cokeSchlumpf/lib--python-commons/commit/797d95a9c57d70d2c199417d5a51a2e411a958fd))
+
 ## [1.6.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.6.0...v1.6.1) (2026-11-03)
 
 ### Highlights
