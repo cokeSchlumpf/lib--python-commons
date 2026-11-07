@@ -7,18 +7,48 @@ from pydantic import BaseModel, ConfigDict, Field
 from commons.database import UnitOfWorkFactory
 from commons.settings import AppSettings, read_settings_object
 
+from .azure_blob import AzureBlobEventLog
 from .broker import LogBroker
 from .log import EventLog, FileEventLog, InMemoryEventLog
 from .ports import HasOutbox
 from .relay import OutboxRelay
+from .sql_log import SqlEventLog
 from .workers import BackgroundWorkers, CommitNotifyingUnitOfWorkFactory, Maintenance
+
+
+class SqlEventLogSettings(BaseModel):
+    """The settings of the ``sql`` event log, which connects with ``[app.database]``.
+
+    Attributes:
+        pool_size: The size of its own connection pool.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    pool_size: int = Field(default=2, gt=0)
+
+
+class AzureBlobEventLogSettings(BaseModel):
+    """The settings of the ``azure_blob`` event log, which uses the account of ``[app.storage.azure]``.
+
+    Attributes:
+        container: The container of the log; not the one of the app's files. Created if it doesn't exist.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    container: str = "events"
 
 
 class EventsSettings(BaseModel):
     """The settings of the message broker, the outbox relay and the maintenance, read from ``[app.events]``.
 
     Attributes:
-        mode: ``file``: durable topic logs below ``dir``; ``memory``: lost on restart (tests, development).
+        mode: ``file``: durable topic logs below ``dir``; ``memory``: lost on restart (tests, development);
+            ``sql``: in the app's database, on an engine of its own; ``azure_blob``: in append blobs. The last two
+            survive a container without persistent storage.
+        sql: The settings of the ``sql`` log.
+        azure_blob: The settings of the ``azure_blob`` log.
         dir: The directory of the ``file`` broker; defaults to ``<data_dir>/events``.
         poll_interval_seconds: How often the relay and the consumers look for work they were not woken for.
         handler_max_concurrency: How many event handlers of one consumer group may run at the same time, for events with different keys.
@@ -37,7 +67,9 @@ class EventsSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["file", "memory"] = "file"
+    mode: Literal["file", "memory", "sql", "azure_blob"] = "file"
+    sql: SqlEventLogSettings = SqlEventLogSettings()
+    azure_blob: AzureBlobEventLogSettings = AzureBlobEventLogSettings()
     dir: Path | None = None
     poll_interval_seconds: float = Field(default=5.0, gt=0)
     handler_max_concurrency: int = Field(default=10, gt=0)
@@ -83,9 +115,8 @@ def background_workers_from_settings(
 
     settings = settings or EventsSettings.read()
 
-    log: EventLog = FileEventLog(settings.events_dir()) if settings.mode == "file" else InMemoryEventLog()
     broker = LogBroker(
-        log,
+        _event_log(settings),
         poll_interval=settings.poll_interval_seconds,
         max_concurrency=settings.handler_max_concurrency,
         max_attempts=settings.handler_max_attempts,
@@ -106,3 +137,20 @@ def background_workers_from_settings(
         maintenance=maintenance,
         maintenance_interval=settings.maintenance_interval_seconds,
     )
+
+
+def _event_log(settings: EventsSettings) -> EventLog:
+    if settings.mode == "file":
+        return FileEventLog(settings.events_dir())
+    if settings.mode == "sql":
+        # Imported here: commons.database_operators reads settings, and apps with other modes need no engine.
+        from commons.database_operators import create_engine
+
+        return SqlEventLog(create_engine(pool_size=settings.sql.pool_size, pool_pre_ping=True))
+    if settings.mode == "azure_blob":
+        from commons.settings import AzureStorageSettings
+        from commons.storage.azure import _build_container_client
+
+        client = _build_container_client(AzureStorageSettings.read(), container=settings.azure_blob.container)
+        return AzureBlobEventLog(client)
+    return InMemoryEventLog()

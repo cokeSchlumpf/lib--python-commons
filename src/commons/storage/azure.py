@@ -76,7 +76,8 @@ def _prefix(path: str) -> str:
     return prefix + "/" if prefix else ""
 
 
-def _build_container_client(settings: AzureStorageSettings) -> ContainerClient:
+def _build_container_client(settings: AzureStorageSettings, container: str | None = None) -> ContainerClient:
+    """The client of ``container``, by default the one of ``settings``."""
     if settings.auth_mode == "connection_string":
         service = BlobServiceClient.from_connection_string(settings.connection_string)
     elif settings.auth_mode == "account_key":
@@ -87,7 +88,7 @@ def _build_container_client(settings: AzureStorageSettings) -> ContainerClient:
         )
     else:  # default_credential
         service = BlobServiceClient(account_url=settings.account_url, credential=DefaultAzureCredential())
-    return service.get_container_client(settings.container)
+    return service.get_container_client(container or settings.container)
 
 
 class AzureFiles(Files):

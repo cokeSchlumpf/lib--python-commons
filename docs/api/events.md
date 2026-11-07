@@ -61,13 +61,15 @@ The background workers are configured under `[app.events]`. All settings are opt
 
 | Setting | Type | Default | Description |
 | --- | --- | --- | --- |
-| `mode` | `"file"` \| `"memory"` | `"file"` | `file`: durable topic logs on disk; `memory`: lost on restart, for tests and development. |
+| `mode` | `"file"` \| `"memory"` \| `"sql"` \| `"azure_blob"` | `"file"` | Where the topic logs, offsets and dead letters are stored, see below. |
 | `dir` | path | `<data_dir>/events` | Directory of the `file` broker. |
 | `poll_interval_seconds` | float | `5.0` | How often the relay and the consumers look for work they were not woken for. |
 | `handler_max_concurrency` | int | `10` | Handlers of one consumer group running at the same time, for events with different keys. |
 | `handler_max_attempts` | int | `3` | Attempts of a handler before the event is dead-lettered. |
 | `outbox_retention_days` | int | `7` | How long published events are kept in the outbox. |
 | `maintenance_interval_seconds` | float | `60.0` | How often the outbox is pruned and the maintenance jobs run. |
+| `sql.pool_size` | int | `2` | Connections of the `sql` log's own pool. |
+| `azure_blob.container` | str | `"events"` | Container of the `azure_blob` log, in the account of `[app.storage.azure]`; not the one of the files. |
 
 ```toml
 [app.events]
@@ -75,6 +77,20 @@ mode = "file"
 poll_interval_seconds = 5
 handler_max_attempts = 3
 ```
+
+### Modes
+
+| Mode | Stored in | Survives | Use it for |
+| --- | --- | --- | --- |
+| `file` | Files below `dir` | a restart, if the disk does | One instance on a persistent disk |
+| `memory` | The process | nothing | Tests and development |
+| `sql` | Tables `event_log_*` in the database of `[app.database]` | everything the database does | Apps with a database, in containers without persistent storage |
+| `azure_blob` | Append blobs in a container | everything the account does | Apps without a database, in such containers |
+
+An outbox counts an event as published once it's in the log: if the log is lost, nothing resends it. So in a container without persistent storage, choose `sql` or `azure_blob`.
+
+- `sql` has its own engine and pool, and a transaction per call, apart from the domain's. It creates its tables itself; they aren't in `SQLModel.metadata`.
+- `azure_blob` needs the extra `azure`. It creates its container itself, which the account key allows.
 
 ## Usage
 
@@ -173,7 +189,8 @@ workers = background_workers_from_settings(repositories, maintenance=[fail_stale
 - **Events nobody subscribed to are skipped**; a group subscribed later does not see them.
 - **Processing starts after the commit.** Within the domain function the work is not done yet; return the pending state to the caller.
 - **Crashed tasks restart.** A background task that crashes is logged and restarted; `stop` never waits longer than its timeout.
-- **Single application instance.** The relay and `LogBroker` assume one running instance; several would publish events twice.
+- **Single application instance.** The relay and `LogBroker` assume one running instance; several would publish and deliver events twice. Two instances that overlap during a deployment on `sql` or `azure_blob` lose nothing: a topic's events become visible in the order of their offsets.
+- **Never on the event loop.** `LogBroker` calls its log in a thread, as it may go over the network.
 
 ## Errors
 

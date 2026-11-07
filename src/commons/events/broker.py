@@ -40,7 +40,11 @@ class LogBroker:
     dead-lettered right away. Either way only its key waits, not the others. Consumers also poll every
     ``poll_interval`` seconds, in case an append bypassed `publish`.
 
-    Single process only: a Kafka or Service Bus adapter would replace this.
+    Every call of the log runs outside the event loop: a log may go over the network.
+
+    In-process: each running instance delivers on its own. Two instances that overlap on a durable log (during a
+    deployment) may deliver an event twice, which at least once allows, and never lose one. A Kafka or Service Bus
+    adapter would replace this.
 
     Args:
         log: The storage of the topics, offsets and dead letters.
@@ -72,7 +76,7 @@ class LogBroker:
         self._wake: dict[tuple[str, str], asyncio.Event] = {}
 
     async def publish(self, envelope: EventEnvelope) -> None:
-        self._log.append(envelope)
+        await asyncio.to_thread(self._log.append, envelope)
 
         loop = self._loop
         for (_, topic), wake in list(self._wake.items()):
@@ -99,11 +103,13 @@ class LogBroker:
             self._wake = {}
 
     async def _consume(self, subscription: _Subscription, wake: asyncio.Event) -> None:
+        committed = await asyncio.to_thread(self._log.committed_offset, subscription.group, subscription.topic)
         consumption = _Consumption(
             self._log,
             subscription,
             self._deliver,
             wake,
+            committed=committed,
             max_in_flight=self._batch_size,
             max_concurrency=self._max_concurrency,
         )
@@ -113,7 +119,7 @@ class LogBroker:
             while True:
                 consumption.raise_failure()
                 wake.clear()  # before reading, so a publish during the read is not missed
-                batch = self._log.read(subscription.topic, offset, self._batch_size)
+                batch = await asyncio.to_thread(self._log.read, subscription.topic, offset, self._batch_size)
 
                 if not batch:
                     with suppress(TimeoutError):
@@ -140,7 +146,7 @@ class LogBroker:
             event = event_type.from_envelope(envelope)
         except (ValidationError, ValueError) as e:
             LOG.error(f"Group `{group}` cannot read event `{envelope.event_id}`: {e}")
-            self._log.dead_letter(group, envelope, f"{type(e).__name__}: {e}")
+            await asyncio.to_thread(self._log.dead_letter, group, envelope, f"{type(e).__name__}: {e}")
             return
 
         for attempt in range(1, self._max_attempts + 1):
@@ -153,7 +159,7 @@ class LogBroker:
                     LOG.exception(
                         f"Group `{group}` failed event `{envelope.event_id}` {attempt} times; dead-lettering it"
                     )
-                    self._log.dead_letter(group, envelope, error)
+                    await asyncio.to_thread(self._log.dead_letter, group, envelope, error)
                     return
 
                 LOG.warning(f"Group `{group}` failed event `{envelope.event_id}` (attempt {attempt}): {error}")
@@ -183,6 +189,7 @@ class _Consumption:
         deliver: Callable[[_Subscription, EventEnvelope], Awaitable[None]],
         wake: asyncio.Event,
         *,
+        committed: int,
         max_in_flight: int,
         max_concurrency: int,
     ) -> None:
@@ -196,7 +203,8 @@ class _Consumption:
         self._last_of_key: dict[str, asyncio.Task[None]] = {}
         self._tasks: set[asyncio.Task[None]] = set()
         self._failure: BaseException | None = None
-        self.committed = log.committed_offset(subscription.group, subscription.topic)
+        self._commit_lock = asyncio.Lock()
+        self.committed = committed
 
     async def dispatch(self, envelope: EventEnvelope, next_offset: int) -> None:
         """Start processing the event after the previous event of its key; wait while too many are in flight."""
@@ -237,18 +245,21 @@ class _Consumption:
                 await self._deliver(self._subscription, envelope)
 
             entry.done = True
-            self._commit()
+            await self._commit()
         finally:
             self._in_flight_slots.release()
 
-    def _commit(self) -> None:
-        offset = self.committed
-        while self._in_flight and self._in_flight[0].done:
-            offset = self._in_flight.popleft().next_offset
+    async def _commit(self) -> None:
+        async with self._commit_lock:  # in another thread, an older offset could otherwise be stored last
+            offset = self.committed
+            while self._in_flight and self._in_flight[0].done:
+                offset = self._in_flight.popleft().next_offset
 
-        if offset != self.committed:
-            self._log.commit_offset(self._subscription.group, self._subscription.topic, offset)
-            self.committed = offset
+            if offset != self.committed:
+                await asyncio.to_thread(
+                    self._log.commit_offset, self._subscription.group, self._subscription.topic, offset
+                )
+                self.committed = offset
 
     def _finished(self, task: asyncio.Task[None]) -> None:
         self._tasks.discard(task)

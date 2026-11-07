@@ -9,7 +9,14 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session, create_engine
 
 from commons.database import SqlUnitOfWorkFactory
+from commons.settings import AzureStorageSettings
+from commons.events.settings import _event_log
+
+from tests.fake_blob_container import FakeContainer
+
 from commons.events import (
+    AzureBlobEventLog,
+    SqlEventLog,
     CommitNotifyingUnitOfWorkFactory,
     EventsSettings,
     FileEventLog,
@@ -72,3 +79,42 @@ def test_the_relay_is_woken_by_commits_of_a_notifying_factory():
     workers = background_workers_from_settings(repositories, EventsSettings(mode="memory"))
 
     assert repositories._listeners == [workers._relay.wake]
+
+
+def test_the_durable_modes_have_their_settings():
+    settings = EventsSettings(mode="sql", sql={"pool_size": 5}, azure_blob={"container": "app-events"})
+
+    assert settings.sql.pool_size == 5 and settings.azure_blob.container == "app-events"
+    assert EventsSettings().mode == "file"
+    assert EventsSettings().sql.pool_size == 2 and EventsSettings().azure_blob.container == "events"
+
+
+def test_sql_mode_builds_the_log_on_an_engine_of_its_own(monkeypatch: pytest.MonkeyPatch):
+    calls: list[dict] = []
+
+    def engine(**options):
+        calls.append(options)
+        return create_engine("sqlite://")
+
+    monkeypatch.setattr("commons.database_operators.create_engine", engine)
+
+    log = _event_log(EventsSettings(mode="sql", sql={"pool_size": 3}))
+
+    assert isinstance(log, SqlEventLog)
+    assert calls == [{"pool_size": 3, "pool_pre_ping": True}]
+
+
+def test_azure_blob_mode_uses_the_account_of_the_storage_and_its_own_container(monkeypatch: pytest.MonkeyPatch):
+    seen: list[str | None] = []
+
+    def client(settings, container=None):
+        seen.append(container)
+        return FakeContainer()
+
+    monkeypatch.setattr("commons.storage.azure._build_container_client", client)
+    monkeypatch.setattr(AzureStorageSettings, "read", staticmethod(lambda: AzureStorageSettings(container="appdata")))
+
+    log = _event_log(EventsSettings(mode="azure_blob"))
+
+    assert isinstance(log, AzureBlobEventLog)
+    assert seen == ["events"]
