@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import threading
+import time
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
@@ -10,7 +12,11 @@ from typing import ClassVar
 import pytest
 
 from commons.events import Event
-from commons.events import EventLog, FileEventLog, InMemoryEventLog, LogBroker
+from sqlmodel import create_engine
+
+from commons.events import AzureBlobEventLog, EventLog, FileEventLog, InMemoryEventLog, LogBroker, SqlEventLog
+
+from tests.fake_blob_container import FakeContainer
 
 
 GROUP = "test-group"
@@ -38,8 +44,12 @@ class _Archived(Event):
     conversation_id: str = CONVERSATION_ID
 
 
-@pytest.fixture(params=["memory", "file"])
+@pytest.fixture(params=["memory", "file", "sql", "azure_blob"])
 def log(request, tmp_path: Path) -> EventLog:
+    if request.param == "sql":
+        return SqlEventLog(create_engine(f"sqlite:///{tmp_path / 'log.db'}"))
+    if request.param == "azure_blob":
+        return AzureBlobEventLog(FakeContainer())
     return InMemoryEventLog() if request.param == "memory" else FileEventLog(tmp_path)
 
 
@@ -397,10 +407,15 @@ def test_after_a_restart_unfinished_events_are_delivered_again():
 
     second = _broker(log)
     second_log, _ = _concurrency_probe(second)
-    asyncio.run(_consume_until(second, lambda: _ended(second_log) == {"slow", "fast"}))
+    asyncio.run(
+        _consume_until(
+            second,
+            # The commit follows the handler, in another thread.
+            lambda: _ended(second_log) == {"slow", "fast"} and log.committed_offset(GROUP, _Requested.topic) == 2,
+        )
+    )
 
     assert _ended(second_log) == {"slow", "fast"}  # "fast" again: at least once
-    assert log.committed_offset(GROUP, _Requested.topic) == 2
 
 
 def test_an_unexpected_failure_stops_the_consumer_so_it_is_restarted():
@@ -425,3 +440,78 @@ def test_an_unexpected_failure_stops_the_consumer_so_it_is_restarted():
         asyncio.run(scenario())
 
     assert log.committed_offset(GROUP, _Requested.topic) == 0
+
+
+def test_the_log_is_never_called_on_the_event_loop():
+    """A log may go over the network: on the event loop it would hold up every other request."""
+    on_the_loop: list[str] = []
+
+    class _Watched(InMemoryEventLog):
+        def _called(self, name: str) -> None:
+            if threading.current_thread() is threading.main_thread():
+                on_the_loop.append(name)
+
+        def append(self, envelope):
+            self._called("append")
+            super().append(envelope)
+
+        def read(self, topic, offset, limit):
+            self._called("read")
+            return super().read(topic, offset, limit)
+
+        def committed_offset(self, group, topic):
+            self._called("committed_offset")
+            return super().committed_offset(group, topic)
+
+        def commit_offset(self, group, topic, offset):
+            self._called("commit_offset")
+            super().commit_offset(group, topic, offset)
+
+        def dead_letter(self, group, envelope, error):
+            self._called("dead_letter")
+            super().dead_letter(group, envelope, error)
+
+    log = _Watched()
+    broker = _broker(log, max_attempts=1)
+
+    async def fail(event: _Requested) -> None:
+        raise ValueError("no")
+
+    broker.subscribe(group=GROUP, event_type=_Requested, handler=fail)
+
+    async def scenario() -> None:
+        await broker.publish(_Requested().to_envelope())
+        await _consume_until(broker, lambda: bool(log.dead_letters) and log.offsets.get((GROUP, "test")) == 1)
+
+    asyncio.run(scenario())
+
+    assert on_the_loop == []
+
+
+def test_offsets_are_stored_in_order():
+    """Commits run in threads: without keeping them in order, an older offset could be stored last."""
+    stored: list[int] = []
+
+    class _SlowFirstCommit(InMemoryEventLog):
+        def commit_offset(self, group, topic, offset):
+            if not stored:
+                time.sleep(0.05)
+            stored.append(offset)
+            super().commit_offset(group, topic, offset)
+
+    log = _SlowFirstCommit()
+    broker = _broker(log)
+
+    async def handle(event: _Requested) -> None:
+        return None
+
+    broker.subscribe(group=GROUP, event_type=_Requested, handler=handle)
+
+    async def scenario() -> None:
+        for _ in range(5):
+            await broker.publish(_Requested().to_envelope())
+        await _consume_until(broker, lambda: log.offsets.get((GROUP, "test")) == 5)
+
+    asyncio.run(scenario())
+
+    assert stored == sorted(stored)

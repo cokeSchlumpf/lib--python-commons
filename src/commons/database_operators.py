@@ -1,5 +1,6 @@
 """Database connection and settings operators."""
 
+from typing import Any
 from pathlib import Path
 
 from commons import settings
@@ -7,7 +8,17 @@ from sqlalchemy import Engine, create_engine as sql_alchemy_create_engine
 from sqlalchemy.engine import URL
 
 
-def create_engine() -> Engine:
+def create_engine(*, pool_size: int | None = None, pool_pre_ping: bool = False) -> Engine:
+    """Return an engine for ``[app.database]``.
+
+    Args:
+        pool_size: The size of its connection pool, if not SQLAlchemy's default.
+        pool_pre_ping: Test each connection before using it, so one that was dropped is replaced, not an error.
+    """
+    options: dict[str, Any] = {"pool_pre_ping": pool_pre_ping}
+    if pool_size is not None:
+        options["pool_size"] = pool_size
+
     database_settings = settings.DatabaseSettings.read()
 
     if database_settings.mode == "mssql":
@@ -31,7 +42,7 @@ def create_engine() -> Engine:
             query=query,
         )
 
-        return sql_alchemy_create_engine(url, future=True)
+        return sql_alchemy_create_engine(url, future=True, **options)
 
     else:
         app_settings = settings.AppSettings.read()
@@ -47,4 +58,4 @@ def create_engine() -> Engine:
 
         database_file.parent.mkdir(parents=True, exist_ok=True)
 
-        return sql_alchemy_create_engine(f"sqlite:///{str(database_file)}")
+        return sql_alchemy_create_engine(f"sqlite:///{str(database_file)}", **options)
