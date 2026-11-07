@@ -2,6 +2,13 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.8.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.7.0...v1.8.0) (2026-11-07)
+
+
+### Features
+
+* event logs in durable storage (T-011) ([e750ca4](https://github.com/cokeSchlumpf/lib--python-commons/commit/e750ca4af248a65aafedb77b06271419646d0767))
+
 ## [1.7.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.6.1...v1.7.0) (2026-11-03)
 
 
