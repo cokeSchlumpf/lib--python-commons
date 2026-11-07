@@ -11,6 +11,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import TypeAdapter
 from sqlalchemy import JSON, DateTime, Dialect, String, TypeDecorator, Unicode
+from sqlalchemy.dialects import mssql
 
 from .column_lengths import CODE_LENGTH, ENUM_LENGTH, NAME_LENGTH
 
@@ -85,9 +86,13 @@ class PydanticJSON(TypeDecorator[T], Generic[T]):
 
 
 class UTCDateTime(TypeDecorator[datetime]):
-    """Store tz-aware datetimes as naive UTC (engine-portable). Read back naive (repo convention)."""
+    """Store tz-aware datetimes as naive UTC (engine-portable). Read back naive (repo convention).
 
-    impl = DateTime
+    ``DATETIME2`` on SQL Server: ``DATETIME`` rounds to about 3 ms, so a value used as a key (``history_valid_from``)
+    no longer matches what was written, and the update of that row finds nothing.
+    """
+
+    impl = DateTime().with_variant(mssql.DATETIME2(), "mssql")
     cache_ok = True
 
     def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
