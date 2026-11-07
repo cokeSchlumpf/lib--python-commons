@@ -96,3 +96,20 @@ None. The developer left the decisions of this spec to the author up to the fina
 - Retention of events, and a distributed consumer: two containers in overlap each deliver, as the broker stays in-process.
 - Event Hubs or other brokers.
 - Changes to the outbox.
+
+## Outcome
+
+Implemented as specified, with these deviations and findings (from the plan, removed at close-out):
+
+- **F1** The relay reads the outbox, closes that transaction, publishes, and marks in a new one, so the log is never inside a domain transaction.
+- **F2** An `UPDATE` that changes no row still holds a transaction open: creating a topic's row from a second session then waits for itself, which the tests found on SQLite. `append` ends the first transaction before it.
+- **F3** The offset of `test_after_a_restart_unfinished_events_are_delivered_again` was checked at the moment the handler ended; the commit now follows in another thread, so the test waits for it. The guarantee is the same: a commit cancelled at shutdown means redelivery.
+- **F4** Against Azurite with the real SDK: sealing, the seal's refusal (`ResourceExistsError` with `error_code` `BlobIsSealed`), segments, offsets across them and delivery through the broker work.
+
+Checked: `poe check` (722 passed), `mkdocs build --strict`, the run against Azurite. Broker tests run on all four logs.
+
+Not checked: `SqlEventLog` against a real SQL Server, only on SQLite and as compiled DDL (R6); `AzureBlobEventLog` against a real storage account. App--casesight's T-031 runs against SQL Server in a container, and should do so before this is released.
+
+Rollout: a minor release of `versions/1`, after the developer's review. Nothing changes for apps until they choose a mode.
+
+Open after this change: the first real run on SQL Server (T-031 of app--casesight, author); a retention for the logs, as they keep growing (developer).
