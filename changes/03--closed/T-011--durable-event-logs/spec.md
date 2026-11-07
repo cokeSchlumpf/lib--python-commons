@@ -106,10 +106,12 @@ Implemented as specified, with these deviations and findings (from the plan, rem
 - **F3** The offset of `test_after_a_restart_unfinished_events_are_delivered_again` was checked at the moment the handler ended; the commit now follows in another thread, so the test waits for it. The guarantee is the same: a commit cancelled at shutdown means redelivery.
 - **F4** Against Azurite with the real SDK: sealing, the seal's refusal (`ResourceExistsError` with `error_code` `BlobIsSealed`), segments, offsets across them and delivery through the broker work.
 
-Checked: `poe check` (722 passed), `mkdocs build --strict`, the run against Azurite. Broker tests run on all four logs.
+- **F5** `SqlEventLog` against Azure SQL Edge 15.0 (ARM64) in a local container, with the ODBC driver and `python:3.14-slim`: round trip with Unicode, offsets, dead letters, a new topic raced by 8 writers, 200 events gap-free in 0.9 s, a reader running alongside 4 writers that skipped nothing, delivery through the broker. The `amd64` image of SQL Server 2022 crashes under this machine's emulation (exit 139), so Edge is what could be tested.
 
-Not checked: `SqlEventLog` against a real SQL Server, only on SQLite and as compiled DDL (R6); `AzureBlobEventLog` against a real storage account. App--casesight's T-031 runs against SQL Server in a container, and should do so before this is released.
+Checked: `poe check` (722 passed), `mkdocs build --strict`, the runs against Azurite and Azure SQL Edge. Broker tests run on all four logs.
+
+Not checked: `SqlEventLog` on Azure SQL itself, only on Azure SQL Edge, an older engine of the same family (R6); `AzureBlobEventLog` on a real storage account, only on Azurite.
 
 Rollout: a minor release of `versions/1`, after the developer's review. Nothing changes for apps until they choose a mode.
 
-Open after this change: the first real run on SQL Server (T-031 of app--casesight, author); a retention for the logs, as they keep growing (developer).
+Open after this change: the first run on Azure SQL (T-031 of app--casesight, author); a retention for the logs, as they keep growing (developer).
