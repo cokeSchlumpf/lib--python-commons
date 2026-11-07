@@ -2,6 +2,13 @@
 
 All notable changes to this library are documented here. The newest release is at the top.
 
+## [1.8.1](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.8.0...v1.8.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **database:** UTCDateTime keeps microseconds on SQL Server ([0176e82](https://github.com/cokeSchlumpf/lib--python-commons/commit/0176e829070b179dcfc8d185a9a5679f39036281))
+
 ## [1.8.0](https://github.com/cokeSchlumpf/lib--python-commons/compare/v1.7.0...v1.8.0) (2026-11-07)
 
 
